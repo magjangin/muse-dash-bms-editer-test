@@ -62,7 +62,7 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#([0-9]{3,})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex DataRegex();
 
-    // 갈래를 나누는 제어 줄. 이 에디터는 아직 해석하지 못한다. (BmsChart.HasConditionalBlocks 참고)
+    // 갈래를 나누는 제어 줄. 어느 갈래가 뽑힐지는 해석하지 않고, 줄마다 어느 갈래 안에 있는지(BranchId)만 적는다.
     [GeneratedRegex(
         @"^#(?:RANDOM|SETRANDOM|ENDRANDOM|RONDAM|IF|ELSEIF|ELSE|ENDIF|SWITCH|SETSWITCH|CASE|SKIP|DEF|ENDSW)(?:\s|$)",
         RegexOptions.IgnoreCase)]
@@ -207,8 +207,7 @@ public static partial class BmsParser
         // 2단계: 채보 데이터(노트) 및 제어문 파싱
         var currentMeasure = 0;
         var currentBranchId = 0;
-        var nextBranchId = 1;
-        var branchStack = new Stack<int>();
+        var branches = new BranchTracker();
 
         for (var lineIndex = 0; lineIndex < rawLines.Length; lineIndex++)
         {
@@ -238,23 +237,7 @@ public static partial class BmsParser
                 if (ControlFlowRegex().IsMatch(line))
                 {
                     chart.HasConditionalBlocks = true;
-
-                    if (Regex.IsMatch(line, @"^#(?:IF|CASE|DEF)\b", RegexOptions.IgnoreCase))
-                    {
-                        currentBranchId = nextBranchId++;
-                        branchStack.Push(currentBranchId);
-                    }
-                    else if (Regex.IsMatch(line, @"^#(?:ELSEIF|ELSE)\b", RegexOptions.IgnoreCase))
-                    {
-                        if (branchStack.Count > 0) branchStack.Pop();
-                        currentBranchId = nextBranchId++;
-                        branchStack.Push(currentBranchId);
-                    }
-                    else if (Regex.IsMatch(line, @"^#(?:ENDIF|ENDSW)\b", RegexOptions.IgnoreCase))
-                    {
-                        if (branchStack.Count > 0) branchStack.Pop();
-                        currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
-                    }
+                    currentBranchId = branches.Apply(ControlKeyword(line));
 
                     chart.PreservedLines.Add(new BmsRawLine
                     {
@@ -348,6 +331,75 @@ public static partial class BmsParser
         chart.Header.Bpm = parsedBpm;
         chart.MeasureCount = measureCount;
         return new BmsParseResult(chart, wavItems, encoding);
+    }
+
+    // 제어 줄의 낱말만 대문자로. "#IF 1" -> "IF", "#endsw" -> "ENDSW".
+    private static string ControlKeyword(string line)
+    {
+        var end = 1;
+        while (end < line.Length && char.IsAsciiLetter(line[end]))
+            end++;
+
+        return line.Length > 1 && line[0] == '#' ? line[1..end].ToUpperInvariant() : string.Empty;
+    }
+
+    // 조건 블록 안에서 "지금 어느 갈래인가"를 따라간다.
+    //
+    // #IF 는 갈래 하나를 열고 #ENDIF 가 닫는다. #SWITCH 는 틀만 열고, 그 안의 #CASE·#DEF 가
+    // 나올 때마다 **앞 CASE 를 닫고** 새 갈래로 갈아탄다. 예전에는 CASE 마다 갈래를 쌓기만 해서
+    // CASE 가 둘 이상이면 #ENDSW 뒤에도 첫 CASE 갈래가 남았다. SWITCH 뒤의 노트가 전부 그 갈래로
+    // 읽혀, SWITCH 를 사이에 둔 홀드 짝이 끊겼다(짝은 갈래별로 따로 센다).
+    private sealed class BranchTracker
+    {
+        private readonly Stack<(bool IsSwitch, int BranchId)> _frames = new();
+        private int _nextBranchId = 1;
+
+        private int Current => _frames.Count > 0 ? _frames.Peek().BranchId : 0;
+
+        public int Apply(string keyword)
+        {
+            switch (keyword)
+            {
+                case "IF":
+                    _frames.Push((false, _nextBranchId++));
+                    break;
+
+                case "ELSEIF" or "ELSE" when _frames.Count > 0 && !_frames.Peek().IsSwitch:
+                    _frames.Pop();
+                    _frames.Push((false, _nextBranchId++));
+                    break;
+
+                case "ENDIF" when _frames.Count > 0 && !_frames.Peek().IsSwitch:
+                    _frames.Pop();
+                    break;
+
+                // CASE 가 나오기 전까지는 바깥 갈래 그대로다.
+                case "SWITCH" or "SETSWITCH":
+                    _frames.Push((true, Current));
+                    break;
+
+                // 앞 CASE(또는 SWITCH 틀)를 닫고 새 갈래를 연다. 닫히지 않은 #IF 가 남아 있으면 같이 닫는다.
+                case "CASE" or "DEF":
+                    PopThroughSwitch();
+                    _frames.Push((true, _nextBranchId++));
+                    break;
+
+                case "ENDSW":
+                    PopThroughSwitch();
+                    break;
+            }
+
+            return Current;
+        }
+
+        private void PopThroughSwitch()
+        {
+            while (_frames.Count > 0)
+            {
+                if (_frames.Pop().IsSwitch)
+                    return;
+            }
+        }
     }
 
     // 1단계에서 이미 읽어간(= 저장할 때 에디터가 새로 써주는) 헤더인지 판별한다.

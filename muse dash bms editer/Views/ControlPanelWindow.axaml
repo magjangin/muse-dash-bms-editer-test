@@ -137,7 +137,7 @@
                 <Button Grid.Column="3" Classes="action" Content="일괄 삭제"
                         HorizontalAlignment="Right"
                         Command="{Binding DeleteWavNotesCommand}"
-                        ToolTip.Tip="고른 번호를 쓰는 노트를 모두 지웁니다. 되돌릴 수 없어 먼저 물어봅니다" />
+                        ToolTip.Tip="고른 번호를 쓰는 노트를 모두 지웁니다. 한꺼번에 많이 지워지므로 먼저 물어봅니다 (Ctrl+Z 로 되돌릴 수 있음)" />
             </Grid>
         </StackPanel>
 

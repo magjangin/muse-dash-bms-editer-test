@@ -134,7 +134,7 @@ public sealed partial class MainWindowViewModel
     // Chart.Header 의 값을 화면에 묶인 프로퍼티로 옮긴다.
     //
     // #PLAYER 는 파일에서 1/2/3 인데 콤보박스는 0부터 시작하는 인덱스라 한 칸 어긋난다.
-    // 그 변환을 여기 한 곳에서만 하고, 되돌리는 쪽은 PlayerHeaderValue 가 맡는다.
+    // 그 변환을 여기 한 곳에서만 하고, 되돌리는 쪽은 바로 아래 CopyHeaderTo 가 맡는다.
     private void PullHeaderFromChart()
     {
         Title = Chart.Header.Title;
@@ -145,6 +145,23 @@ public sealed partial class MainWindowViewModel
         Player = Math.Clamp(Chart.Header.Player - 1, 0, 2);
         Rank = Math.Clamp(Chart.Header.Rank, 0, 3);
         AudioOffsetMs = Chart.Header.AudioOffsetMs;
+    }
+
+    // PullHeaderFromChart 의 반대. 화면에서 고친 헤더 값을 target 에 적는다.
+    //
+    // Chart.Header 는 열 때만 채워지고, 화면에서 고친 값은 저장할 때 BmsWriter 로 바로 넘어간다.
+    // 그래서 Chart.Header 를 그대로 떠 두면 "마지막으로 연 파일의 값"이 담긴다. 되돌리기 스냅샷이
+    // 예전에 그렇게 떠서, 건반 BMS 가져오기를 되돌리면 제목은 돌아오는데 레벨·RANK 는 엉뚱한 값이 됐다.
+    private void CopyHeaderTo(BmsHeader target)
+    {
+        target.Title = Title;
+        target.Artist = Artist;
+        target.Genre = Genre;
+        target.Level = Level;
+        target.Bpm = Bpm;
+        target.Player = Player + 1;
+        target.Rank = Rank;
+        target.AudioOffsetMs = AudioOffsetMs;
     }
 
     // 실패하면 false. 예전에는 조용히 무시해서 사용자가 성공한 줄 알았다.

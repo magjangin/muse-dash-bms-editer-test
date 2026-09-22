@@ -12,7 +12,7 @@ namespace bms_editer.Tests;
 // 저장이 원본을 상하게 하지 않는다는 것을 못 박아 두는 테스트.
 // (알려진 문제 1·11·16·18·20번 — 문서의 1순위 "파일 왕복 무결성" 묶음)
 //
-// 이 에디터에는 Undo 도 자동 백업도 없다. 저장 한 번이 곧 원본이라,
+// 되돌리기(Ctrl+Z)는 에디터 안의 편집만 되돌리고, .bak 은 직전 한 벌뿐이다. 저장 한 번이 곧 원본이라,
 // 여기서 새는 것은 사용자가 알아채기 전에 이미 되돌릴 수 없다.
 public sealed class SaveIntegrityTests : IDisposable
 {
@@ -143,6 +143,121 @@ public sealed class SaveIntegrityTests : IDisposable
         var savedText = File.ReadAllText(path);
         Assert.Contains("#SWITCH 3", savedText);
         Assert.Contains("#CASE 1\r\n#00111:01\r\n#ENDSW", savedText);
+    }
+
+    // #IF 줄은 "그 앞 데이터 줄의 마디"를 달고 있다. 블록이 여러 마디에 걸치면 예전 라이터가
+    // 뒷마디의 조건 밖 줄(BGM·노트)을 #IF 와 #ENDIF 사이에 끼워 넣어, 한 갈래에서만 나오게 만들었다.
+    [Fact]
+    public void 여러_마디에_걸친_RANDOM_블록_뒤의_줄이_블록_안으로_들어가지_않는다()
+    {
+        const string data =
+            "#RANDOM 2\r\n#IF 1\r\n#00111:01\r\n#ENDIF\r\n#IF 2\r\n#00111:02\r\n#ENDIF\r\n#ENDRANDOM\r\n" +
+            "#00101:01\r\n#00113:01\r\n";
+        var path = WriteChart("#TITLE t\r\n#BPM 120\r\n#PLAYER 1\r\n#RANK 3\r\n#WAV01 a.wav\r\n#WAV02 b.wav\r\n\r\n" + data);
+
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path));
+        Assert.True(vm.SaveBms(path), vm.LastErrorMessage);
+
+        var savedText = File.ReadAllText(path);
+        Assert.Equal(0, ConditionalDepthOf(savedText, "#00101:01"));
+        Assert.Equal(0, ConditionalDepthOf(savedText, "#00113:01"));
+
+        // 원문 순서도 그대로다.
+        Assert.Contains(data, savedText);
+    }
+
+    [Fact]
+    public void ENDRANDOM_이_없어도_갈래_안팎이_섞이지_않는다()
+    {
+        var path = WriteChart(
+            "#TITLE t\r\n#BPM 120\r\n#WAV01 a.wav\r\n\r\n" +
+            "#00101:01\r\n#RANDOM 2\r\n" +
+            "#IF 1\r\n#00111:01\r\n#00211:01\r\n#ENDIF\r\n" +
+            "#IF 2\r\n#00112:01\r\n#ENDIF\r\n" +
+            "#00213:01\r\n#00301:01\r\n");
+
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path));
+        Assert.True(vm.SaveBms(path), vm.LastErrorMessage);
+
+        var savedText = File.ReadAllText(path);
+        Assert.Equal(1, ConditionalDepthOf(savedText, "#00111:01"));
+        Assert.Equal(1, ConditionalDepthOf(savedText, "#00211:01"));
+        Assert.Equal(1, ConditionalDepthOf(savedText, "#00112:01"));
+        Assert.Equal(0, ConditionalDepthOf(savedText, "#00101:01"));
+        Assert.Equal(0, ConditionalDepthOf(savedText, "#00213:01"));
+        Assert.Equal(0, ConditionalDepthOf(savedText, "#00301:01"));
+    }
+
+    // CASE 마다 갈래를 쌓기만 해서, CASE 가 둘 이상이면 #ENDSW 뒤의 노트가 첫 CASE 갈래로 읽혔다.
+    // 홀드 짝은 갈래별로 따로 세므로 SWITCH 를 사이에 둔 짝이 끊겼다.
+    [Fact]
+    public void CASE_가_여럿인_SWITCH_뒤의_노트는_조건_밖으로_읽힌다()
+    {
+        var original =
+            "#TITLE t\r\n#BPM 120\r\n#WAV01 a.wav\r\n\r\n" +
+            "#00113:01\r\n" +
+            "#SWITCH 2\r\n#CASE 1\r\n#00111:01\r\n#SKIP\r\n#CASE 2\r\n#00112:01\r\n#SKIP\r\n#ENDSW\r\n" +
+            "#00213:01\r\n";
+        var path = WriteChart(original);
+
+        var notes = BmsParser.Parse(path).Chart.Notes;
+        var before = notes.Single(n => n.Measure == 1 && n.LaneId == "13");
+        var case1 = notes.Single(n => n.LaneId == "11");
+        var case2 = notes.Single(n => n.LaneId == "12");
+        var after = notes.Single(n => n.Measure == 2);
+
+        Assert.Equal(0, before.BranchId);
+        Assert.Equal(0, after.BranchId);
+        Assert.NotEqual(0, case1.BranchId);
+        Assert.NotEqual(0, case2.BranchId);
+        Assert.NotEqual(case1.BranchId, case2.BranchId);
+
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path));
+        Assert.True(vm.SaveBms(path), vm.LastErrorMessage);
+
+        var savedText = File.ReadAllText(path);
+        Assert.Equal(1, ConditionalDepthOf(savedText, "#00111:01"));
+        Assert.Equal(1, ConditionalDepthOf(savedText, "#00112:01"));
+        Assert.Equal(0, ConditionalDepthOf(savedText, "#00213:01"));
+    }
+
+    [Fact]
+    public void SWITCH_가_IF_안에_있어도_ENDSW_뒤에는_바깥_IF_갈래로_돌아온다()
+    {
+        var path = WriteChart(
+            "#TITLE t\r\n#BPM 120\r\n#WAV01 a.wav\r\n\r\n" +
+            "#RANDOM 2\r\n#IF 1\r\n" +
+            "#SWITCH 2\r\n#CASE 1\r\n#00111:01\r\n#CASE 2\r\n#00112:01\r\n#ENDSW\r\n" +
+            "#00113:01\r\n#ENDIF\r\n#00214:01\r\n");
+
+        var notes = BmsParser.Parse(path).Chart.Notes;
+        var insideIf = notes.Single(n => n.LaneId == "13");
+
+        Assert.NotEqual(0, insideIf.BranchId);
+        Assert.NotEqual(insideIf.BranchId, notes.Single(n => n.LaneId == "11").BranchId);
+        Assert.Equal(0, notes.Single(n => n.LaneId == "14").BranchId);
+    }
+
+    // 저장된 파일에서 그 줄이 조건 블록 몇 겹 안에 있는지. 0 이면 조건 밖이다.
+    private static int ConditionalDepthOf(string savedText, string target)
+    {
+        var depth = 0;
+        foreach (var line in savedText.Split("\r\n"))
+        {
+            if (line == target)
+                return depth;
+
+            var keyword = line.StartsWith('#') ? line[1..].Split(' ')[0].ToUpperInvariant() : "";
+            if (keyword is "IF" or "SWITCH")
+                depth++;
+            else if (keyword is "ENDIF" or "ENDSW")
+                depth--;
+        }
+
+        throw new Xunit.Sdk.XunitException($"'{target}' 줄이 저장 결과에 없습니다.");
     }
 
     [Fact]

@@ -132,10 +132,7 @@ public sealed partial class MainWindowViewModel
         var document = new BmsChart();
         document.ReplaceContentWith(Chart);
         document.Notes.Clear();
-        document.Header.Title = Title;
-        document.Header.Artist = Artist;
-        document.Header.Genre = Genre;
-        document.Header.Bpm = Bpm;
+        CopyHeaderTo(document.Header);
         return new EditSnapshot(
             Chart.Notes.Select(CloneNote).ToArray(),
             _wavSnapshotCache,

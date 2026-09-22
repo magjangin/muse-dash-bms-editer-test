@@ -29,11 +29,9 @@ public sealed class BmsChart
 
     // #RANDOM·#IF·#SWITCH 처럼 갈래를 나누는 줄이 파일에 있었는지.
     //
-    // 이 에디터는 조건 블록을 해석하지 못한다. 블록 안의 건반 줄을 평범한 노트로 읽고,
-    // 저장할 때 같은 마디·레인이면 한 줄로 합쳐 버린다. 조건 줄 자체도 데이터 줄이 아니라
-    // 파일 맨 위 헤더 블록으로 끌려 올라간다. 그래서 열어서 저장만 해도 차트가 무너진다.
-    //
-    // 제대로 다룰 수 있을 때까지는 이 표시를 보고 저장을 막는다.
+    // 저장은 된다. 노트와 보존줄이 어느 갈래에 속하는지(BranchId)를 들고 있고, BmsWriter 가
+    // 조건 블록을 원래 순서대로 묶어 내보낸다. 다만 어느 갈래를 볼지 고르는 화면은 없어서
+    // 갈래들이 한 화면에 겹쳐 보인다. 건반 BMS 가져오기는 이 표시를 보고 거절한다.
     public bool HasConditionalBlocks { get; set; }
 
     public double GetMeasureLength(int measure) =>

@@ -634,6 +634,32 @@ public sealed class DownmixTests : IDisposable
         Assert.True(vm.HasMuseDashKeysounds);
     }
 
+    // 스냅샷이 헤더를 Chart.Header(= 마지막으로 연 파일의 값)에서 떠서, 화면에서 고친 레벨·RANK·PLAYER 는
+    // 되돌리면 엉뚱한 값으로 돌아갔다. 제목·BPM 만 화면 값을 따로 챙기고 있었다.
+    [Fact]
+    public async System.Threading.Tasks.Task 가져오기를_되돌리면_화면에서_고친_헤더가_모두_돌아온다()
+    {
+        var vm = new MainWindowViewModel { Title = "내 차트", Level = "7", Rank = 3, Player = 0 };
+        var path = Write("header.bms",
+            "#TITLE 원본\r\n#BPM 150\r\n#PLAYLEVEL 12\r\n#RANK 1\r\n#PLAYER 3\r\n#WAV01 a.wav\r\n#00111:0100\r\n");
+
+        Assert.NotNull(await vm.ImportKeyboardChartAsync(path));
+        Assert.Equal("12", vm.Level);
+        Assert.Equal(1, vm.Rank);
+        Assert.Equal(2, vm.Player);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Equal("내 차트", vm.Title);
+        Assert.Equal("7", vm.Level);
+        Assert.Equal(3, vm.Rank);
+        Assert.Equal(0, vm.Player);
+
+        vm.RedoCommand.Execute(null);
+        Assert.Equal("12", vm.Level);
+        Assert.Equal(1, vm.Rank);
+        Assert.Equal(2, vm.Player);
+    }
+
     // ── 곡 폴더째 가져오기 ───────────────────────────────────────────────
     //
     // 원본 차트는 그 폴더의 음원에 맞춰 만든 것이다. 음원·영상을 같이 열어야 뼈대를 곡에 맞춰 들어 볼 수 있다.

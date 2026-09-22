@@ -146,7 +146,7 @@ public sealed class ControlPanelTests
     [Fact]
     public async Task 확인_창을_띄울_수_없으면_지우지_않는다()
     {
-        // 되돌리기가 없다. 물어볼 길이 없으면 지우는 쪽으로 흘러가서는 안 된다.
+        // 한꺼번에 수백 개가 사라질 수 있는 작업이다. 물어볼 길이 없으면 지우는 쪽으로 흘러가서는 안 된다.
         var owner = WithNotes(("11", 0, "01"));
         var panel = PanelFor(owner);
 

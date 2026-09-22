@@ -76,18 +76,29 @@ public static class BmsWriter
 
         var laneOrder = BuildLaneOrder(chart.Lanes);
 
-        // 편집한 건반 줄과 보존한 원문 줄을 마디 순서로 합쳐서 내보낸다.
-        // 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)과 조건 블록을 원래 순서대로 배치한다.
-        var dataLines = new List<(int Measure, int Order, string Text)>();
+        // 데이터 줄은 두 갈래로 모은다.
+        //   * 조건 밖의 줄: 마디 순서로 정렬한다. 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)이
+        //     먼저 오고, 편집한 건반 줄이 레인 순서로 뒤따른다.
+        //   * 조건 블록의 줄(제어 줄과 갈래 안의 줄): 원문 순서 그대로 덩어리로 묶는다(GroupConditionalBlocks).
+        var plainLines = new List<(int Measure, int Order, string Text)>();
+        var conditionalLines = new List<(double SourceOrder, int Measure, string Text)>();
+
+        // 조건 밖 줄이 원문 몇 번째 줄이었는지. 조건 블록을 어디서 끊을지 가르는 데 쓴다.
+        var plainSourceOrders = new List<int>();
 
         foreach (var raw in chart.PreservedLines)
         {
-            if (raw.IsData)
+            if (!raw.IsData)
+                continue;
+
+            if (raw.IsControlFlow || raw.BranchId > 0)
             {
-                var order = raw.IsControlFlow || raw.BranchId > 0
-                    ? 10000 + (raw.Order >= 0 ? raw.Order : 0)
-                    : 0;
-                dataLines.Add((raw.Measure, order, raw.Text));
+                conditionalLines.Add((raw.Order, raw.Measure, raw.Text));
+            }
+            else
+            {
+                plainLines.Add((raw.Measure, 0, raw.Text));
+                plainSourceOrders.Add(raw.Order);
             }
         }
 
@@ -113,30 +124,104 @@ public static class BmsWriter
             }
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
-            var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
+            var text = $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}";
 
-            int order;
             if (group.Key.BranchId > 0)
             {
-                var sourceOrder = notes.Where(n => n.SourceLineOrder > 0).Select(n => n.SourceLineOrder).DefaultIfEmpty(0).Min();
-                order = 10000 + (sourceOrder > 0 ? sourceOrder : (1000 + lIndex));
-            }
-            else
-            {
-                order = lIndex;
+                conditionalLines.Add((BranchNoteOrder(notes, group.Key.BranchId, chart.PreservedLines), group.Key.Measure, text));
+                continue;
             }
 
-            dataLines.Add((
-                group.Key.Measure,
-                order,
-                $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}"));
+            var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
+            plainLines.Add((group.Key.Measure, lIndex, text));
+
+            foreach (var note in notes)
+            {
+                if (note.SourceLineOrder > 0)
+                    plainSourceOrders.Add(note.SourceLineOrder);
+            }
         }
 
+        var dataLines = plainLines
+            .Select(line => (line.Measure, Order: (double)line.Order, Lines: (IReadOnlyList<string>)new[] { line.Text }))
+            .Concat(GroupConditionalBlocks(conditionalLines, plainSourceOrders));
+
         // OrderBy 는 안정 정렬이라 순서 값이 같은 원문 줄끼리는 담은 순서가 유지된다.
-        foreach (var line in dataLines.OrderBy(d => d.Measure).ThenBy(d => d.Order))
-            sb.AppendLine(line.Text);
+        foreach (var entry in dataLines.OrderBy(d => d.Measure).ThenBy(d => d.Order))
+        {
+            foreach (var line in entry.Lines)
+                sb.AppendLine(line);
+        }
 
         return sb.ToString();
+    }
+
+    // 조건 블록 덩어리는 같은 마디의 조건 밖 줄(순서 값 0~100) 뒤에 나간다.
+    private const double ConditionalOrderBase = 10000;
+
+    // 조건 블록의 줄을 원문 순서대로 덩어리로 묶는다. 덩어리는 쪼개지지 않고 한꺼번에 나간다.
+    //
+    // 예전에는 조건 줄도 한 줄씩 (마디, 순서)로 정렬했다. 그런데 #IF 줄의 마디는 "그 앞에 나온
+    // 데이터 줄의 마디"라서, 블록이 여러 마디에 걸치면 뒷마디의 **조건 밖** 줄(BGM·노트)이
+    // #IF 와 #ENDIF 사이로 끼어들었다. 저장하면 늘 나오던 줄이 한 갈래에서만 나오게 됐다.
+    //
+    // 원문에서 조건 밖 줄이 하나도 끼지 않은 연속 구간을 한 덩어리로 본다. #IF~#ENDIF 사이는
+    // 전부 갈래 안의 줄이라 두 덩어리로 갈라질 수 없다. 덩어리는 첫 줄의 마디 자리에 나간다.
+    private static IEnumerable<(int Measure, double Order, IReadOnlyList<string> Lines)> GroupConditionalBlocks(
+        List<(double SourceOrder, int Measure, string Text)> lines,
+        List<int> plainSourceOrders)
+    {
+        if (lines.Count == 0)
+            yield break;
+
+        plainSourceOrders.Sort();
+        var ordered = lines.OrderBy(line => line.SourceOrder).ToList();
+
+        var first = ordered[0];
+        var previousOrder = first.SourceOrder;
+        var block = new List<string>();
+
+        foreach (var line in ordered)
+        {
+            if (block.Count > 0 && HasPlainLineBetween(plainSourceOrders, previousOrder, line.SourceOrder))
+            {
+                yield return (first.Measure, ConditionalOrderBase + first.SourceOrder, block);
+                first = line;
+                block = new List<string>();
+            }
+
+            block.Add(line.Text);
+            previousOrder = line.SourceOrder;
+        }
+
+        yield return (first.Measure, ConditionalOrderBase + first.SourceOrder, block);
+    }
+
+    // 원문에서 from 과 to 사이(양끝 제외)에 조건 밖 줄이 있었는지. sortedOrders 는 정렬돼 있어야 한다.
+    private static bool HasPlainLineBetween(List<int> sortedOrders, double from, double to)
+    {
+        var index = sortedOrders.BinarySearch((int)Math.Floor(from) + 1);
+        if (index < 0)
+            index = ~index;
+
+        return index < sortedOrders.Count && sortedOrders[index] < to;
+    }
+
+    // 갈래 안 노트 묶음이 원문 몇 번째 줄 자리에 들어가는지.
+    // 파일에서 읽은 노트는 원래 줄 번호를 들고 있다. 없으면 그 갈래를 연 제어 줄 바로 뒤에 둔다.
+    private static double BranchNoteOrder(IReadOnlyList<BmsNote> notes, int branchId, IReadOnlyList<BmsRawLine> preservedLines)
+    {
+        var sourceOrder = notes.Where(n => n.SourceLineOrder > 0).Select(n => n.SourceLineOrder).DefaultIfEmpty(0).Min();
+        if (sourceOrder > 0)
+            return sourceOrder;
+
+        var opener = preservedLines
+            .Where(raw => raw.IsControlFlow && raw.BranchId == branchId)
+            .Select(raw => raw.Order)
+            .DefaultIfEmpty(-1)
+            .Min();
+
+        return opener >= 0 ? opener + 0.5 : int.MaxValue;
     }
 
     private static void AppendIfPresent(StringBuilder sb, string tag, string value)

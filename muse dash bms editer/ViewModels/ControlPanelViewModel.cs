@@ -154,8 +154,8 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
     // 고른 키음을 쓰는 노트를 전부 지운다.
     //
-    // **되돌릴 수 없다.** 되돌리기가 아직 없어서, 한 번에 수백 개가 사라질 수 있는
-    // 이 버튼만은 먼저 물어본다. 확인 창을 띄울 길이 없으면 아무것도 하지 않는다.
+    // 되돌리기(Ctrl+Z)로 살릴 수는 있지만, 한 번에 수백 개가 사라질 수 있는 버튼이라
+    // 누르기 전에 한 번 물어본다. 확인 창을 띄울 길이 없으면 아무것도 하지 않는다.
     [RelayCommand(CanExecute = nameof(HasWavSelection))]
     private async Task DeleteWavNotesAsync()
     {
@@ -177,8 +177,8 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
         var proceed = await confirm(
             $"#{wav.Key} 를 쓰는 노트 {matches.Count}개를 지웁니다.\n\n" +
-            "되돌리기가 없어서 지운 노트는 되살릴 수 없습니다.\n\n" +
-            "그래도 지울까요?");
+            "잘못 지웠으면 되돌리기(Ctrl+Z)로 되살릴 수 있습니다.\n\n" +
+            "지울까요?");
 
         if (!proceed)
         {
