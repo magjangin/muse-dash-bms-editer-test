@@ -1,0 +1,37 @@
+{
+  "id": "gunvolt",
+  "displayName": "건볼트 레코즈 사이크로니클",
+  "verification": "Source",
+  "source": "GRC2 / Parsers/BmsNoteDataParser.cs · Processors/HoldNoteProcessor.cs MatchHoldNotes · Processors/FairyNoteProcessor.cs RunPrimaryFairyMatch",
+  "note": "키음 코드 02=홀드 시작, 19=끝, 11~18=페어리 시작(8방향), 1A/1B=페어리 끝. 홀드는 끝 노트를 소비하지 않아 시작 여러 개가 같은 끝을 쓸 수 있습니다. 페어리는 줄을 세워 가장 오래 기다린 시작과 짝짓습니다. 채널 13은 노트 채널이 아닙니다.",
+  "pathHints": [ "GUNVOLT RECORDS Cychronicle", "GUNVOLT" ],
+  "downmix": {
+    "source": "GRC2 / Parsers/BmsNoteDataParser.cs ChannelToLaneMap — (Lane, IsLeft). 왼쪽 3레인 16·11·12, 오른쪽 3레인 14·15·18. 13은 매핑에 없어 게임이 읽지 않습니다.",
+    "ground": [ "16", "11", "12" ],
+    "air": [ "14", "15", "18" ]
+  },
+  "holdRules": [
+    {
+      "kind": "Hold",
+      "channels": [ "16", "11", "12", "14", "15", "18" ],
+      "role": { "type": "KeyValue", "headKeys": [ "02" ], "tailKeys": [ "19" ] },
+      "policy": "NearestTailShared",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임은 끝 노트(19)가 없는 홀드로 보고 오류를 남깁니다.",
+      "orphanTailOutcome": "게임은 이 끝 노트를 어느 홀드에도 붙이지 못합니다."
+    },
+    {
+      "kind": "Fairy",
+      "channels": [ "16", "11", "12", "14", "15", "18" ],
+      "role": {
+        "type": "KeyValue",
+        "headKeys": [ "11", "12", "13", "14", "15", "16", "17", "18" ],
+        "tailKeys": [ "1A", "1B" ]
+      },
+      "policy": "FifoQueue",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임은 끝 노트(1A/1B)가 없는 페어리로 봅니다.",
+      "orphanTailOutcome": "게임은 이 페어리 끝을 어느 시작에도 붙이지 못합니다."
+    }
+  ]
+}

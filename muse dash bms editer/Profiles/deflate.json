@@ -1,0 +1,24 @@
+{
+  "id": "deflate",
+  "displayName": "DEFLATE",
+  "verification": "Source",
+  "source": "DEFLATE custom chart / Core/Bms/BmsParser.cs — PairHoldNotesByKeysound",
+  "note": "파일명 키워드는 부분 일치이고 끝 키워드를 먼저 봅니다. 시작마다 같은 채널에서 뒤에 있는 아직 안 쓴 끝 중 가장 가까운 것 하나와 짝짓습니다.",
+  "pathHints": [ "DEFLATE" ],
+  "holdRules": [
+    {
+      "kind": "Hold",
+      "channels": [ "16", "11", "12", "13", "14" ],
+      "role": {
+        "type": "FileNameKeyword",
+        "headKeywords": [ "홀드 시작", "홀드시작", "hold start", "holdstart", "hold_start", "ln start", "lnstart" ],
+        "tailKeywords": [ "홀드 끝", "홀드끝", "hold end", "holdend", "hold_end", "ln end", "lnend" ],
+        "tailFirst": true
+      },
+      "policy": "NearestUnconsumedTail",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임에서는 단타로 강등됩니다.",
+      "orphanTailOutcome": "게임에서는 이 끝 노트를 지웁니다."
+    }
+  ]
+}

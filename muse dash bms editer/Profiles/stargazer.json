@@ -1,0 +1,31 @@
+{
+  "id": "stargazer",
+  "displayName": "식스타 게이트: 스타게이저",
+  "verification": "Assumed",
+  "source": "STARGAZER custom chart / src/Bms/BmsChart.cs — ClassifyNoteKind (분류만 확인)",
+  "note": "모드는 노트마다 StartPoint/EndPoint 표식만 넘기고 짝은 게임 엔진이 맺습니다. 짝 규칙은 확인되지 않아 같은 채널의 뒤에 있는 가장 가까운 끝으로 가정합니다. 분류는 'hold' 가 있어야 하고 시작 키워드를 먼저 봅니다.",
+  "pathHints": [ "Sixtar Gate STARGAZER", "STARGAZER" ],
+  "downmix": {
+    "source": "STARGAZER custom chart / src/Bms/BmsChart.cs BmsChannelLaneOrder — 16=위 · 12=오른쪽 · 13=아래 · 11=왼쪽 (16부터 시계 방향). 좌우가 아니라 4방향이라 위=공중, 아래=지상으로 놓고 좌우 둘은 번갈아 보냅니다.",
+    "ground": [ "13" ],
+    "air": [ "16" ],
+    "alternating": [ "12", "11" ]
+  },
+  "holdRules": [
+    {
+      "kind": "Hold",
+      "channels": [ "16", "12", "13", "11" ],
+      "role": {
+        "type": "FileNameKeyword",
+        "requiredKeyword": "hold",
+        "headKeywords": [ "시작", "start" ],
+        "tailKeywords": [ "끝", "end" ],
+        "tailFirst": false
+      },
+      "policy": "NearestUnconsumedTail",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임에서의 처리는 확인되지 않았습니다.",
+      "orphanTailOutcome": "게임에서의 처리는 확인되지 않았습니다."
+    }
+  ]
+}

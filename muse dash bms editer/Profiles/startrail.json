@@ -1,0 +1,34 @@
+{
+  "id": "startrail",
+  "displayName": "식스타 게이트: 스타트레일",
+  "verification": "Source",
+  "source": "sxtg2 / sxtg2-mod/Loaders/BmsParser.cs — NoteTypeMapping · TryResolveLane · PairHoldNotes",
+  "note": "키음 값 02=롱노트 시작, 03=끝, 04=게이트 열림, 05=닫힘. 레인마다 대기 칸이 하나뿐이라 끝이 오기 전에 시작이 또 오면 앞 시작을 버립니다. 게이트는 채널과 무관하게 게임 레인 하나(9번)로 모여 짝지어집니다.",
+  "pathHints": [ "Sixtar Gate STARTRAIL", "STARTRAIL" ],
+  "downmix": {
+    "source": "sxtg2 / sxtg2-mod/Loaders/BmsParser.cs LaneMapping — 16=0 11=1 12=2 13=3 14=4 15=5 18=6 (왼쪽→오른쪽). 16은 Blue Gate, 18은 Red Gate 레인이지만 둘 다 치는 노트가 올라옵니다.",
+    "ground": [ "16", "11", "12" ],
+    "alternating": [ "13" ],
+    "air": [ "14", "15", "18" ]
+  },
+  "holdRules": [
+    {
+      "kind": "Hold",
+      "channels": [ "16", "11", "12", "13", "14", "15", "18" ],
+      "role": { "type": "KeyValue", "headKeys": [ "02" ], "tailKeys": [ "03" ] },
+      "policy": "ReplacePending",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임은 끝이 없는 롱노트로 기록합니다(MissingEndNotes).",
+      "orphanTailOutcome": "게임은 짝 없는 끝으로 기록하고 버립니다(OrphanEndNotes)."
+    },
+    {
+      "kind": "Gate",
+      "channels": [ "16", "11", "12", "13", "14", "15", "18" ],
+      "role": { "type": "KeyValue", "headKeys": [ "04" ], "tailKeys": [ "05" ] },
+      "policy": "ReplacePending",
+      "scope": "AllChannels",
+      "orphanHeadOutcome": "게임은 닫히지 않은 게이트로 기록합니다(MissingEndNotes).",
+      "orphanTailOutcome": "게임은 짝 없는 닫힘으로 기록하고 버립니다(OrphanEndNotes)."
+    }
+  ]
+}

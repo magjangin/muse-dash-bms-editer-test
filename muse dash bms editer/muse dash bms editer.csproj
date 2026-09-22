@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <Version>0.1.3</Version>
+    <AssemblyVersion>0.1.3.0</AssemblyVersion>
+    <FileVersion>0.1.3.0</FileVersion>
+    <InformationalVersion>0.1.3</InformationalVersion>
+    <Product>muse dash bms editer</Product>
+    <Company>magjangin</Company>
+    <Description>BMS Chart Editor for Muse Dash</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <!-- 게임 프로파일(홀드 짝 규칙)은 exe 안에 넣는다.
+       옆 폴더에만 두면 exe 만 복사해 간 사용자는 홀드가 하나도 안 잡히는데 이유가 화면에 없다.
+       AvaloniaResource 가 아니라 EmbeddedResource 인 이유: Avalonia 런타임을 띄우지 않고도
+       읽혀야 단위 테스트가 프로파일을 바로 검증할 수 있다. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Profiles\*.json" LogicalName="profiles/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3124.44" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+  </ItemGroup>
+
+  <!-- 배포(publish) 산출물에서 PDB와 XML 문서 파일을 제외한다.
+       SkiaSharp/HarfBuzz 네이티브 PDB만 100MB가 넘고, WebView2 XML 문서도 배포에 불필요하다.
+       bin/ 의 PDB는 그대로 남으므로 크래시 스택 심볼 분석에는 영향이 없다. -->
+  <Target Name="ExcludeSymbolsFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(Extension)' == '.pdb' Or '%(Extension)' == '.xml'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

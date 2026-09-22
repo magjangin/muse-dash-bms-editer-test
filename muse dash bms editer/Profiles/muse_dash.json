@@ -1,0 +1,50 @@
+{
+  "id": "muse_dash",
+  "displayName": "뮤즈 대시",
+  "verification": "Playtested",
+  "source": "muse dash test / Bms/BmsWavParser.cs ParseWavInfo · ApplyFallbackNoteType · Bms/BmsNoteMatcher.cs MatchSpecialNotes",
+  "note": "파일명 앞 6자리 UID로 종류를 정하고(앞 4자리가 우선), 같은 채널에서 같은 종류가 나온 순서로 홀수=시작, 짝수=끝입니다. 파일명의 '시작/끝'은 짝을 정하지 않습니다. 홀드와 샌드백은 수열을 따로 셉니다.",
+  "pathHints": [ "Muse Dash", "muse dash" ],
+  "uidTable": {
+    "pattern": "^([0-9]{6})",
+    "prefixLength": 4,
+    "prefixTypes": { "0002": "Heart", "0003": "Score", "0004": "SceneToggle" },
+    "typeOffset": 2,
+    "typeLength": 2,
+    "typeCodes": { "02": "Hold", "03": "Obstacle", "04": "Sandbag", "09": "Obstacle", "17": "Ghost" },
+    "wideOffset": 2,
+    "wideLength": 4,
+    "resolvedWideCodes": [ "0101", "0102", "0107", "0108", "0109", "0110", "0113", "0114" ],
+    "resolvedTypeCodes": [ "06", "07", "08", "09" ],
+    "finalPrefixes": { "0004": "SceneToggle" },
+    "blockingKeywords": [ "boss_swap", "boss_out", "boss_in" ],
+    "blockingType": "Boss",
+    "nameFallbacks": [
+      { "keywords": [ "heart", "hp" ], "uidPrefix": "0002", "type": "Heart" },
+      { "keywords": [ "score", "note" ], "uidPrefix": "0003", "type": "Score" },
+      { "keywords": [ "sandbag" ], "uidTypeCode": "04", "type": "Sandbag" },
+      { "keywords": [ "hold", "long" ], "uidTypeCode": "02", "type": "Hold" },
+      { "uidTypeCode": "17", "type": "Ghost" }
+    ]
+  },
+  "holdRules": [
+    {
+      "kind": "Hold",
+      "channels": [ "13", "14", "15", "18" ],
+      "role": { "type": "FileNameUid", "headLabels": [ "시작" ], "tailLabels": [ "끝" ] },
+      "policy": "Alternate",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임 로그에 '짝(종료 노트)을 찾지 못했습니다' 경고가 남습니다.",
+      "orphanTailOutcome": ""
+    },
+    {
+      "kind": "Sandbag",
+      "channels": [ "13", "14", "15", "18" ],
+      "role": { "type": "FileNameUid", "headLabels": [ "시작" ], "tailLabels": [ "끝" ] },
+      "policy": "Alternate",
+      "scope": "Channel",
+      "orphanHeadOutcome": "게임 로그에 샌드백의 '짝(종료 노트)을 찾지 못했습니다' 경고가 남습니다.",
+      "orphanTailOutcome": ""
+    }
+  ]
+}

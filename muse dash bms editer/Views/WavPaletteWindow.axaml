@@ -1,0 +1,192 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        xmlns:models="using:bms_editer.Models"
+        mc:Ignorable="d"
+        x:Class="bms_editer.Views.WavPaletteWindow"
+        x:DataType="vm:WavPaletteViewModel"
+        Title="키음 팔레트"
+        Width="720" Height="600"
+        MinWidth="360" MinHeight="320"
+        CanMinimize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- 크기는 전부 스타일로만 준다. 템플릿 안에 FontSize/Width 를 직접 쓰면
+         지역값이 스타일보다 우선해서 보기 모드 전환이 먹지 않는다.
+         또 같은 구체성끼리는 나중에 선언한 스타일이 이기므로,
+         기본값을 먼저 두고 모드별 덮어쓰기를 뒤에 둔다. -->
+    <Window.Styles>
+        <Style Selector="Button.action">
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- 아이콘 보기 공통 -->
+        <Style Selector="ListBox.icons ListBoxItem">
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Padding" Value="9,7" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.icons TextBlock.key">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="ListBox.icons TextBlock.name">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Opacity" Value="0.85" />
+        </Style>
+
+        <!-- 보통 아이콘 -->
+        <Style Selector="ListBox.vmedium ListBoxItem">
+            <Setter Property="Width" Value="132" />
+            <Setter Property="Padding" Value="7,5" />
+        </Style>
+        <Style Selector="ListBox.vmedium TextBlock.key">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="ListBox.vmedium TextBlock.name">
+            <Setter Property="FontSize" Value="10" />
+        </Style>
+
+        <!-- 큰 아이콘 (기본) -->
+        <Style Selector="ListBox.vlarge ListBoxItem">
+            <Setter Property="Width" Value="186" />
+        </Style>
+
+        <!-- 아주 큰 아이콘: 파일명이 웬만하면 안 잘리도록 넉넉하게 -->
+        <Style Selector="ListBox.vxlarge ListBoxItem">
+            <Setter Property="Width" Value="300" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        <Style Selector="ListBox.vxlarge TextBlock.key">
+            <Setter Property="FontSize" Value="17" />
+        </Style>
+        <Style Selector="ListBox.vxlarge TextBlock.name">
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <!-- 목록 보기: 한 줄에 하나라 파일명이 잘리지 않는다 -->
+        <Style Selector="ListBox.rows ListBoxItem">
+            <Setter Property="Margin" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.rows TextBlock.key">
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="ListBox.rows TextBlock.name">
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+
+        <!-- Fluent 기본 선택 강조는 어두운 테마에서 거의 안 보여서 강조색을 직접 입힌다.
+             검색/삭제/교체 창과 같은 파랑을 써서 창끼리 인상을 맞춘다. -->
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3B6FD4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#4A80E8" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="12">
+
+        <!-- 검색: 키음이 수백 개가 되면 판만 훑어서는 못 찾는다 -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,8">
+            <TextBox Grid.Column="0" Text="{Binding Filter}"
+                     PlaceholderText="번호 또는 파일명으로 검색" />
+            <Button Grid.Column="1" Content="지우기" Command="{Binding ClearFilterCommand}" />
+            <ComboBox Grid.Column="2" Width="136"
+                      SelectedIndex="{Binding ViewModeIndex}"
+                      ToolTip.Tip="타일 크기를 바꿉니다. 파일명이 잘려서 안 보이면 [목록]이나 [아주 큰 아이콘]을 쓰세요.">
+                <ComboBoxItem>목록</ComboBoxItem>
+                <ComboBoxItem>보통 아이콘</ComboBoxItem>
+                <ComboBoxItem>큰 아이콘</ComboBoxItem>
+                <ComboBoxItem>아주 큰 아이콘</ComboBoxItem>
+            </ComboBox>
+        </Grid>
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
+            <TextBlock Text="{Binding StatusText}" Opacity="0.75" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
+                <CheckBox Grid.Column="0" Content="고르면 미리듣기"
+                          IsChecked="{Binding PreviewOnSelect}"
+                          ToolTip.Tip="타일을 누를 때 그 키음을 바로 들려줍니다" />
+                <Button Grid.Column="2" Classes="action" Content="키음 추가" Click="OnAddWavClick" />
+                <Button Grid.Column="3" Classes="action" Content="키음 삭제"
+                        Command="{Binding Owner.RemoveWavCommand}" />
+                <Button Grid.Column="4" Classes="action" Content="재생 테스트"
+                        Command="{Binding Owner.TestPlayWavCommand}" />
+            </Grid>
+        </StackPanel>
+
+        <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="8">
+            <Panel>
+                <TextBlock Text="등록된 키음이 없습니다."
+                           Opacity="0.6"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding IsEmptyTable}" />
+                <TextBlock Text="검색어와 맞는 키음이 없습니다."
+                           Opacity="0.6"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsVisible="{Binding ShowNoMatch}" />
+
+                <!-- 아이콘 보기 (보통/큰/아주 큰) -->
+                <ListBox Classes="icons"
+                         Classes.vmedium="{Binding IsMediumMode}"
+                         Classes.vlarge="{Binding IsLargeMode}"
+                         Classes.vxlarge="{Binding IsExtraLargeMode}"
+                         ItemsSource="{Binding Items}"
+                         SelectedItem="{Binding SelectedWavItem}"
+                         IsVisible="{Binding ShowIconView}"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:BmsWavItem">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="key" Text="{Binding Key, StringFormat='#{0}'}" />
+                                <TextBlock Classes="name" Text="{Binding FileName}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding FileName}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- 목록 보기 -->
+                <ListBox Classes="rows"
+                         ItemsSource="{Binding Items}"
+                         SelectedItem="{Binding SelectedWavItem}"
+                         IsVisible="{Binding ShowListView}"
+                         Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:BmsWavItem">
+                            <Grid ColumnDefinitions="58,*">
+                                <TextBlock Grid.Column="0" Classes="key"
+                                           Text="{Binding Key, StringFormat='#{0}'}" />
+                                <TextBlock Grid.Column="1" Classes="name"
+                                           Text="{Binding FileName}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding FileName}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Panel>
+        </Border>
+
+    </DockPanel>
+</Window>

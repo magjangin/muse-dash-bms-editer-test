@@ -1,0 +1,4 @@
+﻿<Solution>
+  <Project Path="muse dash bms editer/muse dash bms editer.csproj" />
+  <Project Path="muse dash bms editer.Tests/muse dash bms editer.Tests.csproj" />
+</Solution>

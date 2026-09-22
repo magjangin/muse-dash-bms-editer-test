@@ -1,0 +1,300 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        xmlns:controls="using:bms_editer.Views.Controls"
+        xmlns:models="using:bms_editer.Models"
+        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="720"
+        x:Class="bms_editer.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="bms editer"
+        Icon="/Assets/icon.ico"
+        Width="1280" Height="720">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="파일 (F)">
+                <MenuItem Header="새로 만들기" Command="{Binding NewFileCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="열기..." Click="OnOpenFileClick" InputGesture="Ctrl+O" />
+                <MenuItem Header="폴더 열기..." Click="OnOpenFolderClick" />
+                <Separator />
+                <MenuItem Header="저장" Click="OnSaveFileClick" InputGesture="Ctrl+S" />
+                <MenuItem Header="다른 이름으로 저장..." Click="OnSaveFileAsClick" InputGesture="Ctrl+Shift+S" />
+            </MenuItem>
+            <MenuItem Header="편집 (E)">
+                <MenuItem Header="{Binding UndoMenuHeader}" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+                <MenuItem Header="{Binding RedoMenuHeader}" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
+                <Separator />
+                <MenuItem Header="선택 해제" Command="{Binding ClearNoteSelectionCommand}" InputGesture="Escape" />
+                <MenuItem Header="선택 삭제" Command="{Binding DeleteSelectedNotesCommand}" InputGesture="Delete" />
+                <Separator />
+                <MenuItem Header="건반 BMS 가져오기 (다운믹스)..." Click="OnImportKeyboardChartClick" />
+                <Separator />
+                <MenuItem Header="검색/삭제/교체..." Click="OnShowNoteSearchClick" />
+                <MenuItem Header="키음 팔레트..." Click="OnShowWavPaletteClick" />
+                <MenuItem Header="노트 통계..." Click="OnShowStatsClick" />
+                <MenuItem Header="컨트롤 패널..." Click="OnShowControlPanelClick" />
+            </MenuItem>
+            <MenuItem Header="재생 (P)">
+                <MenuItem Header="재생 / 정지" Command="{Binding TogglePlaybackCommand}" InputGesture="Space" />
+                <MenuItem Header="재생" Command="{Binding PlayCommand}" />
+                <MenuItem Header="정지" Command="{Binding StopCommand}" />
+            </MenuItem>
+            <MenuItem Header="미디어 (M)">
+                <MenuItem Header="OGG 열기..." Click="OnLoadOggClick" />
+                <MenuItem Header="비디오 열기..." Click="OnLoadVideoClick" />
+                <MenuItem Header="비디오 제거" Click="OnClearVideoClick" />
+            </MenuItem>
+        </Menu>
+
+        <Border DockPanel.Dock="Top" Padding="6,4" BorderThickness="0,0,0,1" BorderBrush="Gray">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="새로" Command="{Binding NewFileCommand}" />
+                <Button Content="열기" Click="OnOpenFileClick" />
+                <Button Content="저장" Click="OnSaveFileClick" />
+                <Separator />
+                <Button Content="↩" Command="{Binding UndoCommand}" ToolTip.Tip="{Binding UndoMenuHeader}" />
+                <Button Content="↪" Command="{Binding RedoCommand}" ToolTip.Tip="{Binding RedoMenuHeader}" />
+                <Separator />
+                <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계 (보기 전용)" />
+                <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
+                <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" />
+                <Button Content="🎨" Click="OnShowWavPaletteClick" ToolTip.Tip="키음 팔레트 (별도 창)" />
+                <Button Content="🎛️" Click="OnShowControlPanelClick" ToolTip.Tip="컨트롤 패널 (레인/키음별 일괄 선택 · 포커스 · 미리듣기 · 일괄 교체)" />
+                <Separator />
+                <Button Content="OGG 열기" Click="OnLoadOggClick" />
+                <Button Content="비디오 열기" Click="OnLoadVideoClick" />
+                <Button Content="폴더 열기" Click="OnOpenFolderClick" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="8,2" BorderThickness="0,1,0,0" BorderBrush="Gray">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <TextBlock Text="{Binding Bpm, StringFormat='BPM: {0}'}" />
+                <TextBlock Text="{Binding GridDisplay, StringFormat='Grid: {0}'}" />
+                <TextBlock Text="{Binding OggFileName, StringFormat='OGG: {0}', TargetNullValue='OGG: (없음)'}" />
+                <TextBlock Text="{Binding VideoFileName, StringFormat='Video: {0}', TargetNullValue='Video: (없음)'}" />
+                <TextBlock Text="{Binding HoldSummaryText}" ToolTip.Tip="홀드·샌드백 짝 상태입니다. 게임을 켜지 않고도 짝이 깨졌는지 여기서 보입니다." />
+            </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,4,320">
+            <ScrollViewer x:Name="EditorScrollViewer"
+                          Grid.Column="0"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          AllowAutoHide="False"
+                          Background="Transparent">
+                <StackPanel x:Name="EditorSurface"
+                            Orientation="Horizontal"
+                            Background="Transparent"
+                            PointerPressed="OnEditorSurfacePointerPressed"
+                            PointerMoved="OnEditorSurfacePointerMoved"
+                            PointerReleased="OnEditorSurfacePointerReleased">
+                    <controls:OggWaveformControl
+                        x:Name="Waveform"
+                        Width="220"
+                        MeasureCount="{Binding MeasureCount}"
+                        RowHeight="{Binding RowHeight}"
+                        VerticalZoom="{Binding VerticalZoom}"
+                        HorizontalZoom="{Binding WaveformHorizontalZoom}"
+                        BeatSplit="{Binding BeatSplit}"
+                        GridMeasure="{Binding GridMeasure}"
+                        Bpm="{Binding Bpm}"
+                        Timeline="{Binding Timeline}"
+                        Peaks="{Binding OggPeaks}"
+                        Onsets="{Binding OggOnsets}"
+                        DurationSeconds="{Binding OggDurationSeconds}"
+                        AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
+                        PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
+                        IsPlaybackCursorVisible="{Binding IsPlaybackCursorVisible}"
+                        IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
+                        IsHorizontalView="{Binding IsHorizontalView}" />
+                    <controls:NoteGridControl
+                        Lanes="{Binding Chart.Lanes}"
+                        MeasureCount="{Binding MeasureCount}"
+                        RowHeight="{Binding RowHeight}"
+                        VerticalZoom="{Binding VerticalZoom}"
+                        LaneWidth="40"
+                        HorizontalZoom="{Binding HorizontalZoom}"
+                        BeatSplit="{Binding BeatSplit}"
+                        GridMeasure="{Binding GridMeasure}"
+                        Bpm="{Binding Bpm}"
+                        Timeline="{Binding Timeline}"
+                        DurationSeconds="{Binding OggDurationSeconds}"
+                        AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
+                        PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
+                        IsPlaybackCursorVisible="{Binding IsPlaybackCursorVisible}"
+                        IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
+                        IsHorizontalView="{Binding IsHorizontalView}"
+                        Notes="{Binding Notes}"
+                        IsCircleNoteShape="{Binding IsCircleNoteShape}"
+                        IsEditMode="{Binding IsEditMode}"
+                        SnapToGrid="{Binding SnapToGrid}"
+                        SelectedNotes="{Binding SelectedNotes}"
+                        HoldLinks="{Binding HoldLinks}"
+                        HoldProblemNotes="{Binding HoldProblemNotes}"
+                        PlaceNoteCommand="{Binding PlaceNoteCommand}"
+                        RemoveNoteCommand="{Binding RemoveNoteCommand}"
+                        SelectNotesCommand="{Binding SelectNotesCommand}"
+                        KeyDown="OnNoteGridKeyDown"
+                        Focusable="True" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" Background="Gray" />
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="8" Margin="8">
+                    <!-- 홀드 검사기. 문제가 없으면 자리를 차지하지 않는다.
+                         짝이 맞을 때의 개수는 하단 상태줄에 이미 있다. 늘 떠 있으면 경고가 풍경이 된다. -->
+                    <StackPanel Spacing="4" IsVisible="{Binding HasHoldDiagnostics}">
+                        <TextBlock Text="홀드 검사기" FontWeight="Bold" Foreground="#FF7800" />
+                        <TextBlock Text="{Binding HoldSummaryText}" Opacity="0.8" TextWrapping="Wrap" />
+                        <ListBox ItemsSource="{Binding HoldDiagnostics}"
+                                 SelectedItem="{Binding SelectedHoldDiagnostic}"
+                                 MaxHeight="200">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:HoldDiagnostic">
+                                    <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="줄을 고르면 그 노트가 선택되고 격자가 그 자리로 갑니다."
+                                   Opacity="0.6" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <TextBlock Text="VIDEO PREVIEW" FontWeight="Bold" />
+                    <Border Height="170"
+                            Background="#0A0A0C"
+                            BorderBrush="DimGray"
+                            BorderThickness="1">
+                        <controls:VideoPreviewControl x:Name="VideoPreview" />
+                    </Border>
+                    <TextBlock Text="{Binding VideoFileName, TargetNullValue='비디오 없음'}"
+                               TextTrimming="CharacterEllipsis"
+                               Opacity="0.75" />
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button Content="비디오 열기" Click="OnLoadVideoClick" />
+                        <Button Content="제거" Click="OnClearVideoClick" />
+                    </StackPanel>
+
+                    <TextBlock Text="HEADER" FontWeight="Bold" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="#TITLE" />
+                        <TextBox Text="{Binding Title}" />
+                        <TextBlock Text="#ARTIST" />
+                        <TextBox Text="{Binding Artist}" />
+                        <TextBlock Text="#GENRE" />
+                        <TextBox Text="{Binding Genre}" />
+                        <TextBlock Text="#BPM" />
+                        <NumericUpDown Value="{Binding Bpm}" Minimum="1" Maximum="999" FormatString="0.0000" />
+                        <TextBlock Text="#PLAYER" />
+                        <ComboBox SelectedIndex="{Binding Player}" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="1 - Single" />
+                            <ComboBoxItem Content="2 - Couple" />
+                            <ComboBoxItem Content="3 - Double" />
+                        </ComboBox>
+                        <TextBlock Text="#RANK" />
+                        <ComboBox SelectedIndex="{Binding Rank}" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="0 - VeryHard" />
+                            <ComboBoxItem Content="1 - Hard" />
+                            <ComboBoxItem Content="2 - Normal" />
+                            <ComboBoxItem Content="3 - Easy" />
+                        </ComboBox>
+                        <TextBlock Text="#LEVEL" />
+                        <TextBox Text="{Binding Level}" />
+                    </StackPanel>
+
+                    <TextBlock Text="격자" FontWeight="Bold" Margin="0,12,0,0" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="마디 수" />
+                        <NumericUpDown Value="{Binding MeasureCount}"
+                                       Minimum="1" Maximum="9999"
+                                       ToolTip.Tip="음원 길이와 이미 찍힌 노트가 요구하는 만큼은 자동으로 확보됩니다" />
+                        <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="8">
+                            <StackPanel Grid.Column="0" Spacing="2">
+                                <TextBlock Text="비트" />
+                                <NumericUpDown Value="{Binding BeatSplit}" Minimum="1" Maximum="192" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="/" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+                            <StackPanel Grid.Column="2" Spacing="2">
+                                <TextBlock Text="마디" />
+                                <NumericUpDown Value="{Binding GridMeasure}" Minimum="1" Maximum="48" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="세로 줌" VerticalAlignment="Center" Width="60" />
+                            <Slider Value="{Binding VerticalZoom}" Minimum="4" Maximum="8" Width="150" />
+                            <TextBlock Text="{Binding VerticalZoom, StringFormat={}{0:0.00}}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="그리드 가로 줌" VerticalAlignment="Center" Width="90" />
+                            <Slider Value="{Binding HorizontalZoom}" Minimum="0.25" Maximum="4" Width="150" />
+                            <TextBlock Text="{Binding HorizontalZoom, StringFormat={}{0:0.00}}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="파형 가로 줌" VerticalAlignment="Center" Width="90" />
+                            <Slider Value="{Binding WaveformHorizontalZoom}" Minimum="0.25" Maximum="4" Width="150" />
+                            <TextBlock Text="{Binding WaveformHorizontalZoom, StringFormat={}{0:0.00}}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="재생 배속" VerticalAlignment="Center" Width="90" />
+                            <Slider Value="{Binding PlaybackSpeed}" Minimum="0.1" Maximum="1.0" Width="150" />
+                            <TextBlock Text="{Binding PlaybackSpeed, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="음원 오프셋" VerticalAlignment="Center" Width="90" ToolTip.Tip="음원을 앞뒤로 밀어 첫 박을 마디 격자에 맞춥니다 (ms)" />
+                            <Slider Value="{Binding AudioOffsetMs}" Minimum="-200" Maximum="200" Width="150" />
+                            <TextBlock Text="{Binding AudioOffsetMs, StringFormat={}{0:0.0}ms}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Stretch" Margin="0,2,0,4">
+                            <Button Content="⚡ 오프셋 자동 맞춤"
+                                    Command="{Binding DetectAudioOffsetCommand}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    ToolTip.Tip="음원의 어택(온셋)을 분석하여 16분 격자에 가장 잘 맞는 오프셋을 자동 계산합니다" />
+                            <Button Content="0 초기화"
+                                    Command="{Binding ResetAudioOffsetCommand}"
+                                    ToolTip.Tip="오프셋을 0ms로 되돌립니다" />
+                        </StackPanel>
+                        <ToggleButton Content="{Binding KeySoundToggleText}"
+                                      IsChecked="{Binding IsKeySoundEnabled}"
+                                      HorizontalAlignment="Stretch"
+                                      HorizontalContentAlignment="Center"
+                                      Margin="0,4"
+                                      ToolTip.Tip="체크 해제 시 BGM만 재생되고 채보 노트의 키음 소리를 끕니다" />
+                        <CheckBox Content="재생바 따라가기" IsChecked="{Binding FollowPlaybackCursor}" />
+                        <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}"
+                                  ToolTip.Tip="끄면 클릭한 자리에 그대로 찍습니다 (잇단음 등)" />
+                        <CheckBox Content="수직위치 고정(D)" IsChecked="{Binding LockVerticalPosition}"
+                                  ToolTip.Tip="켜면 방향키로 시간 위치를 바꾸지 않습니다. 레인만 옮깁니다" />
+                        <CheckBox Content="가로 뷰로 돌리기" IsChecked="{Binding IsHorizontalView}" />
+                        <CheckBox Content="네모를 동그라미로 바꾸기" IsChecked="{Binding IsCircleNoteShape}" />
+                    </StackPanel>
+
+                    <TextBlock Text="키음 (#WAV)" FontWeight="Bold" Margin="0,12,0,0" />
+                    <StackPanel Spacing="4">
+                        <ListBox ItemsSource="{Binding WavList}" SelectedItem="{Binding SelectedWavItem}" Height="120">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayText}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Button Content="키음 추가" Click="OnAddWavClick" />
+                            <Button Content="키음 삭제" Command="{Binding RemoveWavCommand}" />
+                            <Button Content="재생 테스트" Command="{Binding TestPlayWavCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</Window>

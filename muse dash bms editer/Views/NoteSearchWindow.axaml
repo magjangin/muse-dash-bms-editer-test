@@ -1,0 +1,165 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        mc:Ignorable="d"
+        x:Class="bms_editer.Views.NoteSearchWindow"
+        x:DataType="vm:NoteSearchViewModel"
+        Title="검색/삭제/교체"
+        Width="510" SizeToContent="Height"
+        CanResize="False"
+        CanMinimize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Styles>
+        <Style Selector="ToggleButton.filter">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ToggleButton.lane">
+            <Setter Property="MinWidth" Value="36" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Fluent 기본 테마는 켜짐/꺼짐 차이가 거의 안 보여서 강조색을 직접 입힌다.
+             밝은 테마와 어두운 테마 양쪽에서 읽히는 파랑을 쓴다. -->
+        <Style Selector="ToggleButton.filter:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3B6FD4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.filter:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#4A80E8" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.lane:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3B6FD4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ToggleButton.lane:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#4A80E8" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.action">
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="14" Spacing="12">
+
+        <!-- 상단: 대상 노트 / 마디 범위 / 번호 범위 -->
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+            <TextBlock Grid.Row="0" Grid.Column="0"
+                       Text="대상 노트" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <Grid Grid.Row="0" Grid.Column="1"
+                  ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto"
+                  ColumnSpacing="4" RowSpacing="4">
+                <ToggleButton Grid.Row="0" Grid.Column="0" Classes="filter" Content="선택"
+                              IsChecked="{Binding IncludeSelected}" />
+                <ToggleButton Grid.Row="0" Grid.Column="1" Classes="filter" Content="일반"
+                              IsChecked="{Binding IncludeNormal}" />
+                <ToggleButton Grid.Row="0" Grid.Column="2" Classes="filter" Content="숨기기"
+                              IsChecked="{Binding IncludeHidden}"
+                              IsEnabled="{Binding AreNoteTypeFiltersUsable}"
+                              ToolTip.Tip="{Binding NoteTypeFilterHint}" />
+                <ToggleButton Grid.Row="1" Grid.Column="0" Classes="filter" Content="미선택"
+                              IsChecked="{Binding IncludeUnselected}" />
+                <ToggleButton Grid.Row="1" Grid.Column="1" Classes="filter" Content="롱"
+                              IsChecked="{Binding IncludeLong}"
+                              IsEnabled="{Binding AreNoteTypeFiltersUsable}"
+                              ToolTip.Tip="{Binding NoteTypeFilterHint}" />
+                <ToggleButton Grid.Row="1" Grid.Column="2" Classes="filter" Content="보이기"
+                              IsChecked="{Binding IncludeVisible}" />
+            </Grid>
+
+            <TextBlock Grid.Row="1" Grid.Column="0"
+                       Text="마디 범위" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,*" ColumnSpacing="8">
+                <NumericUpDown Grid.Column="0" Value="{Binding MeasureFrom}"
+                               Minimum="0" Maximum="999" Increment="1" FormatString="0" />
+                <TextBlock Grid.Column="1" Text="~" VerticalAlignment="Center" />
+                <NumericUpDown Grid.Column="2" Value="{Binding MeasureTo}"
+                               Minimum="0" Maximum="999" Increment="1" FormatString="0" />
+            </Grid>
+
+            <TextBlock Grid.Row="2" Grid.Column="0"
+                       Text="번호 범위" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto,*" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Text="{Binding WavKeyFrom}" MaxLength="3"
+                         ToolTip.Tip="키음 번호(base-36)의 시작값. 차트가 3자리 배치를 쓰면 001~ZZZ" />
+                <TextBlock Grid.Column="1" Text="~" VerticalAlignment="Center" />
+                <TextBox Grid.Column="2" Text="{Binding WavKeyTo}" MaxLength="3"
+                         ToolTip.Tip="키음 번호(base-36)의 끝값. 차트가 3자리 배치를 쓰면 001~ZZZ" />
+            </Grid>
+        </Grid>
+
+        <!-- 열(레인) 선택 -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="열" FontWeight="Bold" />
+            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <ItemsControl Grid.Column="0" ItemsSource="{Binding Lanes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LaneFilterItem">
+                                <ToggleButton Classes="lane"
+                                              Content="{Binding Header}"
+                                              IsChecked="{Binding IsIncluded}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Top">
+                        <Button Classes="action" Content="모두 선택" Command="{Binding IncludeAllLanesCommand}" />
+                        <Button Classes="action" Content="선택 전환" Command="{Binding InvertLanesCommand}" />
+                        <Button Classes="action" Content="모두 선택 취소" Command="{Binding ExcludeAllLanesCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </StackPanel>
+
+        <!-- 작업 -->
+        <StackPanel Spacing="4">
+            <TextBlock Text="작업" FontWeight="Bold" />
+            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="10">
+                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                      ColumnSpacing="4" RowSpacing="4">
+                    <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="번호 바꾸기 :"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{Binding ReplaceWavKeyCommand}"
+                                ToolTip.Tip="조건에 맞는 노트의 키음 번호를 오른쪽 값으로 바꿉니다" />
+                        <TextBox Grid.Column="1" Width="72" Text="{Binding ReplacementWavKey}" MaxLength="3" />
+                    </Grid>
+
+                    <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
+                          ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="마디 옮겨 복사 :"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{Binding CopyMatchesCommand}"
+                                ToolTip.Tip="조건에 맞는 노트를 오른쪽 마디 수만큼 옮긴 자리에 복제합니다. 음수를 넣으면 앞쪽으로 복사합니다. 이미 노트가 있는 자리는 건너뜁니다." />
+                        <NumericUpDown Grid.Column="1" Width="124" Value="{Binding CopyMeasureOffset}"
+                                       Minimum="-999" Maximum="999" Increment="1" FormatString="0" />
+                    </Grid>
+
+                    <Button Grid.Row="0" Grid.Column="2" Classes="action" Content="선택"
+                            Command="{Binding SelectMatchesCommand}" />
+                    <Button Grid.Row="0" Grid.Column="3" Classes="action" Content="삭제"
+                            Command="{Binding DeleteMatchesCommand}" />
+                    <Button Grid.Row="1" Grid.Column="2" Classes="action" Content="선택 취소"
+                            Command="{Binding ClearSelectionCommand}" />
+                    <Button Grid.Row="1" Grid.Column="3" Classes="action" Content="닫기"
+                            Click="OnCloseClick" />
+                </Grid>
+            </Border>
+        </StackPanel>
+
+        <TextBlock Text="{Binding StatusMessage}" Opacity="0.75" TextWrapping="Wrap" />
+    </StackPanel>
+</Window>

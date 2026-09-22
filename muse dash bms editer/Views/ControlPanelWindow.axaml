@@ -1,0 +1,150 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        mc:Ignorable="d"
+        x:Class="bms_editer.Views.ControlPanelWindow"
+        x:DataType="vm:ControlPanelViewModel"
+        Title="컨트롤 패널"
+        Width="420" Height="640"
+        MinWidth="340" MinHeight="420"
+        CanMinimize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <!--
+      집계를 보여주면서 그 줄로 노트를 다루는 공구함이다.
+
+      **목록 항목 안에는 명령을 걸지 않는다.** 예전에 여기서 조상 바인딩으로
+      명령을 끌어왔다가 컴파일된 바인딩에서 조용히 끊어져, 눌러도 아무 일이 없는
+      버튼이 됐다. 빌드도 예외도 멀쩡했다. 그래서 고른 줄은 SelectedItem 으로만
+      받고, 누르는 것은 전부 목록 밖에서 창의 DataContext 에 직접 건다.
+
+      목록은 가상화되도록 바깥 ScrollViewer 없이 Grid 로 배치한다.
+      ScrollViewer 안에 ItemsControl 을 넣으면 키음 628개짜리 차트에서 628줄을
+      전부 만들어 놓는다.
+    -->
+    <Window.Styles>
+        <Style Selector="Button.action">
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Fluent 기본 선택 강조는 어두운 테마에서 거의 안 보인다.
+             고른 줄이 곧 작업 대상이므로 검색 창·팔레트와 같은 파랑을 직접 입힌다. -->
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3B6FD4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#4A80E8" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style Selector="ListBox">
+            <Setter Property="BorderBrush" Value="Gray" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" Margin="16">
+
+        <!-- 🅿️ 이 열(레인) 칸은 모양을 다시 볼 자리다. 지금은 한 번에 하나만 고를 수 있어,
+             여러 열을 묶어 고르는 일은 검색 창의 열 토글이 맡는다. 레인 구성 고정이 풀려
+             5키·10키·14키·Double 이 들어오면 열 개수부터 달라지므로 그때 정한다.
+             (docs/issues/known_issues.md 의 "🅿️ 나중에 고려: 패널 맨 위의 열(레인) 선택 칸" 참고) -->
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="레인별 노트 개수" FontWeight="Bold" />
+            <TextBlock Text="노트가 없습니다." Opacity="0.6" IsVisible="{Binding !HasLaneStats}" />
+        </StackPanel>
+
+        <ListBox Grid.Row="1"
+                 x:Name="LaneStatList"
+                 ItemsSource="{Binding Stats}"
+                 SelectedItem="{Binding SelectedLaneStat}"
+                 IsVisible="{Binding HasLaneStats}"
+                 SelectionMode="Single"
+                 MaxHeight="164"
+                 Margin="0,4,0,0"
+                 DoubleTapped="OnLaneRowDoubleTapped"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:LaneNoteStat">
+                    <Grid ColumnDefinitions="Auto,*" ToolTip.Tip="두 번 누르면 이 레인의 노트를 모두 선택합니다">
+                        <TextBlock Grid.Column="0" Text="{Binding Header}" Width="60" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4" Margin="0,6,0,0">
+            <Button Grid.Column="0" Classes="action" Content="레인 노트 선택"
+                    Command="{Binding SelectLaneNotesCommand}"
+                    ToolTip.Tip="고른 레인의 노트를 격자에서 모두 선택하고 그 자리로 스크롤합니다" />
+            <Button Grid.Column="1" Classes="action" Content="선택 해제"
+                    Command="{Binding ClearSelectionCommand}" />
+        </Grid>
+
+        <StackPanel Grid.Row="3" Spacing="4" Margin="0,14,0,6">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="키음별 노트 개수" FontWeight="Bold" VerticalAlignment="Center" />
+                <CheckBox Grid.Column="1" Content="고르면 미리듣기"
+                          IsChecked="{Binding PreviewOnSelect}"
+                          ToolTip.Tip="줄을 누를 때 그 키음을 바로 들려줍니다" />
+            </Grid>
+            <TextBlock Text="실제로 노트에 쓰인 번호만 표시합니다." Opacity="0.6" TextWrapping="Wrap" />
+            <TextBlock Text="쓰인 키음이 없습니다." Opacity="0.6" IsVisible="{Binding !HasWavStats}" />
+        </StackPanel>
+
+        <ListBox Grid.Row="4"
+                 x:Name="WavStatList"
+                 ItemsSource="{Binding WavStats}"
+                 SelectedItem="{Binding SelectedWavStat}"
+                 IsVisible="{Binding HasWavStats}"
+                 SelectionMode="Single"
+                 DoubleTapped="OnWavRowDoubleTapped"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:WavNoteStat">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding FileName}">
+                        <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}"
+                                   Width="46" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding FileName}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="2" Text="{Binding Count}"
+                                   HorizontalAlignment="Right" MinWidth="30" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="5" Spacing="4" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4">
+                <Button Grid.Column="0" Classes="action" Content="키음 노트 선택"
+                        Command="{Binding SelectWavNotesCommand}"
+                        ToolTip.Tip="이 번호를 쓰는 노트를 격자에서 모두 선택하고 그 자리로 스크롤합니다" />
+                <Button Grid.Column="1" Classes="action" Content="미리듣기 ▶"
+                        Command="{Binding PreviewWavCommand}" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="4">
+                <TextBlock Grid.Column="0" Text="바꿀 번호" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Width="72" Text="{Binding ReplacementWavKey}" MaxLength="3" />
+                <Button Grid.Column="2" Classes="action" Content="일괄 교체"
+                        Command="{Binding ReplaceWavNotesCommand}"
+                        ToolTip.Tip="고른 번호를 쓰는 노트를 모두 이 번호로 바꿉니다" />
+                <Button Grid.Column="3" Classes="action" Content="일괄 삭제"
+                        HorizontalAlignment="Right"
+                        Command="{Binding DeleteWavNotesCommand}"
+                        ToolTip.Tip="고른 번호를 쓰는 노트를 모두 지웁니다. 되돌릴 수 없어 먼저 물어봅니다" />
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Grid.Row="6" Spacing="4" Margin="0,10,0,0">
+            <TextBlock Text="{Binding StatusMessage}" Opacity="0.75" TextWrapping="Wrap" />
+            <TextBlock FontWeight="Bold"
+                       Text="{Binding TotalCount, StringFormat='전체 노트: {0}개'}" />
+        </StackPanel>
+    </Grid>
+</Window>

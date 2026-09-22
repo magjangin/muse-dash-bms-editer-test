@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        mc:Ignorable="d"
+        x:Class="bms_editer.Views.NoteStatsWindow"
+        x:DataType="vm:NoteStatsViewModel"
+        Title="노트 통계"
+        Width="360" Height="560"
+        MinWidth="280" MinHeight="300"
+        CanMinimize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <!--
+      보여주기만 하는 창이다. 편집하는 동안 집계가 따라 갱신된다.
+
+      "이 줄의 노트를 격자에서 골라 다루는" 일은 컨트롤 패널(🎛️)이 맡는다.
+      여기는 숫자만 보고 싶을 때 여는 창이라 누를 것을 두지 않는다.
+
+      목록은 가상화되도록 바깥 ScrollViewer 없이 Grid 로 배치한다.
+      ScrollViewer 안에 ItemsControl 을 넣으면 키음 628개짜리 차트에서 628줄을
+      전부 만들어 놓는다.
+    -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="레인별 노트 개수" FontWeight="Bold" />
+            <TextBlock Text="노트가 없습니다." Opacity="0.6" IsVisible="{Binding !HasLaneStats}" />
+            <ItemsControl ItemsSource="{Binding Stats}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LaneNoteStat">
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                            <TextBlock Grid.Column="0" Text="{Binding Header}" Width="48" />
+                            <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="4" Margin="0,14,0,6">
+            <TextBlock Text="키음별 노트 개수" FontWeight="Bold" />
+            <TextBlock Text="실제로 노트에 쓰인 번호만 표시합니다." Opacity="0.6" TextWrapping="Wrap" />
+            <TextBlock Text="쓰인 키음이 없습니다." Opacity="0.6" IsVisible="{Binding !HasWavStats}" />
+        </StackPanel>
+
+        <ListBox Grid.Row="2"
+                 x:Name="WavStatList"
+                 ItemsSource="{Binding WavStats}"
+                 IsVisible="{Binding HasWavStats}"
+                 SelectionMode="Single"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:WavNoteStat">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding FileName}">
+                        <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}"
+                                   Width="46" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding FileName}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="2" Text="{Binding Count}"
+                                   HorizontalAlignment="Right" MinWidth="30" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock Grid.Row="3" Margin="0,10,0,0" FontWeight="Bold"
+                   Text="{Binding TotalCount, StringFormat='전체 노트: {0}개'}" />
+    </Grid>
+</Window>
