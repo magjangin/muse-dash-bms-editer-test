@@ -132,6 +132,9 @@
 | `Delete` | 선택한 노트 삭제 |
 | `Esc` | 선택 해제 |
 
+마우스 조작·보조 창까지 전부는 📖 [사용 설명서](docs/guides/editor_manual.md), 막히면 🧯 [문제 해결](docs/guides/troubleshooting.md),
+게임에 넣기 전에는 ✅ [점검표](docs/guides/release_checklist.md)를 보세요.
+
 ---
 
 ## 🚀 빌드와 실행
@@ -157,7 +160,8 @@ dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProf
 
 ## ⚠️ 현재 한계
 
-솔직하게 적어 둡니다. 자세한 내용은 [알려진 문제](docs/issues/known_issues.md)와 [채보 작성 시간](docs/issues/authoring_time.md) 문서에 있습니다.
+솔직하게 적어 둡니다. 자세한 내용은 [알려진 문제](docs/issues/known_issues.md), [채보 작성 시간](docs/issues/authoring_time.md),
+[실사용 점검](docs/issues/usability_review.md) 문서에 있습니다.
 
 - **아직 시간이 오래 걸립니다.** 뮤즈 대시 340노트 채보에 약 4시간이 걸렸고, 절반 이상이 "맞게 찍었는지 확인하는 데" 들었습니다.
   이후 추가한 다운믹스·짝 검사·되돌리기로 얼마나 줄었는지는 아직 다시 재 보지 않았습니다.
