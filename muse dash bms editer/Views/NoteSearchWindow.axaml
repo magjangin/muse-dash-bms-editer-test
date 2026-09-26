@@ -128,7 +128,7 @@
         <StackPanel Spacing="4">
             <TextBlock Text="작업" FontWeight="Bold" />
             <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="10">
-                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto,Auto"
+                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
                       ColumnSpacing="4" RowSpacing="4">
                     <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <Button Grid.Column="0" Content="번호 바꾸기 :"
@@ -147,6 +147,27 @@
                         <NumericUpDown Grid.Column="1" Width="124" Value="{Binding CopyMeasureOffset}"
                                        Minimum="-999" Maximum="999" Increment="1" FormatString="0" />
                     </Grid>
+
+                    <Grid Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4"
+                          ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="구간 씬 바꾸기 :"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{Binding ConvertSceneCommand}"
+                                ToolTip.Tip="마디 범위 안의 노트를 오른쪽 씬의 같은 노트(UID 앞 두 자리만 다른 키음)로 바꿉니다. 하트·음표처럼 씬과 무관한 노트는 그대로 둡니다. 열·번호 범위·선택 조건도 그대로 적용됩니다." />
+                        <ComboBox Grid.Column="1" Width="124"
+                                  ItemsSource="{Binding SceneChoices}"
+                                  SelectedItem="{Binding TargetScene}" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4"
+                                Orientation="Horizontal" Spacing="16">
+                        <CheckBox Content="시작 마디에 씬 전환 넣기"
+                                  IsChecked="{Binding AddSceneStartToggle}"
+                                  ToolTip.Tip="마디 범위 첫 마디의 첫 박(13 레인, 차 있으면 14 레인)에 그 씬으로 가는 씬 전환 노트(0004xx)를 둡니다. 같은 자리의 다른 씬 전환은 갈아 끼웁니다." />
+                        <CheckBox Content="끝나면 원래 씬으로"
+                                  IsChecked="{Binding AddSceneReturnToggle}"
+                                  ToolTip.Tip="마디 범위 다음 마디의 첫 박에, 구간 뒤 첫 노트의 씬으로 돌아가는 씬 전환 노트를 둡니다. 그 사이에 씬 전환이 이미 있으면 넣지 않습니다." />
+                    </StackPanel>
 
                     <Button Grid.Row="0" Grid.Column="2" Classes="action" Content="선택"
                             Command="{Binding SelectMatchesCommand}" />

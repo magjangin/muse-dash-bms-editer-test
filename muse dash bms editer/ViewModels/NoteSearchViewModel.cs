@@ -24,6 +24,12 @@ public sealed partial class LaneFilterItem : ObservableObject
     }
 }
 
+// 구간 씬 바꾸기에서 고르는 씬 한 칸.
+public sealed record SceneChoice(int Number)
+{
+    public override string ToString() => $"{Number}번 씬";
+}
+
 // 조건에 맞는 노트를 한 번에 찾아 선택/삭제하거나 키음 번호를 바꾸는 창의 상태 모델.
 //
 // 대상 노트 필터는 세 그룹(선택 상태 / 노트 종류 / 표시 여부)으로 나뉘며,
@@ -53,6 +59,16 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         _wavKeyFrom = ToBase36(1);
         _wavKeyTo = new string('Z', KeyWidth);
         _replacementWavKey = ToBase36(1);
+
+        // 게임에 있는 씬에, 이 차트의 키음 표에 있는 씬을 더한다.
+        var scenes = new SortedSet<int>(SceneUid.KnownScenes);
+        foreach (var wav in owner.WavList)
+        {
+            if (SceneUid.SceneOf(SceneWavResolver.TextOf(wav)) is { } zz)
+                scenes.Add(int.Parse(zz));
+        }
+        SceneChoices = scenes.Select(n => new SceneChoice(n)).ToArray();
+        _targetScene = SceneChoices[0];
     }
 
     public ObservableCollection<LaneFilterItem> Lanes { get; } = new();
@@ -92,6 +108,13 @@ public sealed partial class NoteSearchViewModel : ObservableObject
 
     // 복사할 때 옮길 마디 수. 음수면 앞쪽으로 복사한다.
     [ObservableProperty] private int _copyMeasureOffset = 1;
+
+    // 구간 씬 바꾸기
+    public IReadOnlyList<SceneChoice> SceneChoices { get; }
+
+    [ObservableProperty] private SceneChoice? _targetScene;
+    [ObservableProperty] private bool _addSceneStartToggle = true;
+    [ObservableProperty] private bool _addSceneReturnToggle = true;
 
     [ObservableProperty] private string _statusMessage = "조건을 정한 뒤 아래 작업 버튼을 누르세요.";
 
@@ -236,6 +259,62 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         StatusMessage = changed == 0
             ? $"{matches.Count}개가 이미 {normalizedKey}입니다.{unregistered}"
             : $"{changed}개를 {normalizedKey}(으)로 바꿨습니다.{unregistered}";
+    }
+
+    // 마디 범위 안의 노트를 고른 씬의 같은 노트로 바꾸고, 구간 시작에 씬 전환 노트를 둔다.
+    // 다른 조건(열·번호 범위·선택 상태)도 그대로 적용된다.
+    [RelayCommand]
+    private void ConvertScene()
+    {
+        if (TargetScene is not { } scene)
+        {
+            StatusMessage = "바꿀 씬을 고르세요.";
+            return;
+        }
+
+        var result = _owner.ConvertSectionToScene(
+            FindMatches(), MeasureFrom, MeasureTo, scene.Number, AddSceneStartToggle, AddSceneReturnToggle);
+        StatusMessage = DescribeSceneConvert(result, scene);
+    }
+
+    private static string DescribeSceneConvert(SceneConvertResult result, SceneChoice scene)
+    {
+        var lines = new List<string>();
+
+        var head = result.Converted > 0
+            ? $"노트 {result.Converted}개를 {scene}으로 바꿨습니다."
+            : $"{scene}으로 바꾼 노트가 없습니다.";
+        if (result.AlreadyTarget > 0)
+            head += $" (이미 {scene} {result.AlreadyTarget}개)";
+        lines.Add(head);
+
+        if (result.StartToggle is { } start)
+            lines.Add($"씬 전환: {start}");
+        if (result.ReturnToggle is { } back)
+            lines.Add($"되돌림: {back}");
+
+        if (result.CreatedWavs > 0)
+        {
+            var missing = result.MissingFiles > 0
+                ? $" 그중 {result.MissingFiles}개는 파일이 없어 미리듣기에서 소리가 안 납니다(게임은 파일명만 읽습니다)."
+                : "";
+            lines.Add($"키음 표에 없던 #WAV {result.CreatedWavs}개를 새로 적었습니다.{missing}");
+        }
+
+        if (result.UnresolvedNotes > 0)
+        {
+            var names = string.Join(", ", result.UnresolvedNames.Take(3));
+            var more = result.UnresolvedNames.Count > 3 ? $" 외 {result.UnresolvedNames.Count - 3}종" : "";
+            lines.Add($"⚠ {scene}의 같은 키음을 못 찾아 그대로 둔 노트 {result.UnresolvedNotes}개: {names}{more}");
+        }
+
+        if (result.TogglesInside > 0)
+            lines.Add($"⚠ 구간 안에 다른 씬 전환 노트가 {result.TogglesInside}개 있습니다. 그 자리부터는 그 씬 배경이 됩니다.");
+
+        foreach (var warning in result.Warnings)
+            lines.Add("⚠ " + warning);
+
+        return string.Join("\n", lines);
     }
 
     [RelayCommand]
