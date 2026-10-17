@@ -30,14 +30,23 @@ public sealed class NoteIcon
 // 폴더가 없거나 그림이 없는 노트는 호출하는 쪽이 단색 동그라미로 그린다.
 public sealed class NoteIconCatalog
 {
-    // 같은 종류(UID 3~4번째 자리)는 그림 모양이 비슷해서 배율도 같게 둔다.
-    // 지금은 눈으로 보고 정한 값이다: 0112 는 가로로 넓고 낮아서 30px 에서 작아 보였다.
+    // 같은 종류(UID 앞 4자리 = 씬+종류)는 그림 모양이 비슷해서 배율도 같게 둔다.
+    // 종류 번호만으로 찾으면 다른 씬의 같은 번호(0106 구슬 ↔ 0206 블록)에 배율이 번져서 씬까지 같이 본다.
+    // 6자리 전체(yy 까지)로 적은 항목이 있으면 그것이 먼저다.
+    // 지금은 눈으로 보고 정한 값이다.
     private static readonly Dictionary<string, double> ScaleByKind = new()
     {
-        ["12"] = 38.0 / 30.0,
+        // 0112 는 가로로 넓고 낮아서 30px 에서 작아 보였다.
+        ["0112"] = 38.0 / 30.0,
 
         // 0106 은 구슬 오른쪽에 길게 꼬리 선이 달려 있어서, 폭에 맞추면 구슬이 18px 로 줄어든다.
-        ["06"] = 1.7,
+        ["0106"] = 1.7,
+
+        // 0211 은 낮고 넓은 날개 네모라 21px 높이로 작아 보였다.
+        ["0211"] = 1.2,
+
+        // 020504 는 무지개 막대가 길어서 몸통이 16px 로 줄어든다. 같은 0205 의 01 은 그대로 둔다.
+        ["020504"] = 1.4,
     };
 
     private readonly string _folder;
@@ -69,8 +78,16 @@ public sealed class NoteIconCatalog
         return name.Substring(0, 6);
     }
 
-    public static double ScaleFor(string uid) =>
-        uid.Length == 6 && ScaleByKind.TryGetValue(uid.Substring(2, 2), out var scale) ? scale : 1.0;
+    public static double ScaleFor(string uid)
+    {
+        if (uid.Length != 6)
+            return 1.0;
+
+        if (ScaleByKind.TryGetValue(uid, out var exact))
+            return exact;
+
+        return ScaleByKind.TryGetValue(uid.Substring(0, 4), out var scale) ? scale : 1.0;
+    }
 
     // 키음 번호 → 그림. 그림이 있는 번호만 담는다.
     public IReadOnlyDictionary<string, NoteIcon> Build(IEnumerable<KeyValuePair<string, string>> wavTable)

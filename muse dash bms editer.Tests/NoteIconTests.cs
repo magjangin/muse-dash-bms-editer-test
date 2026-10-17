@@ -39,6 +39,16 @@ public sealed class NoteIconTests
         Assert.True(NoteIconCatalog.ScaleFor("010601") > 1.0, "0106 은 꼬리 선 때문에 구슬이 작아서 키운다");
     }
 
+    [Fact]
+    public void 배율은_씬이_다르면_번지지_않는다()
+    {
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("020601"));
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("021201"));
+        Assert.True(NoteIconCatalog.ScaleFor("021101") > 1.0);
+        Assert.True(NoteIconCatalog.ScaleFor("020504") > 1.0);
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("020501"));
+    }
+
     // premultiplied BGRA 한 픽셀을 쓴다.
     private static void Put(byte[] bgra, int width, int x, int y, byte r, byte g, byte b, byte a)
     {
