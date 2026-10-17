@@ -30,12 +30,13 @@ public sealed class NoteIconTests
         Assert.Equal(expected, NoteIconCatalog.UidOf(text));
 
     [Fact]
-    public void 가로로_넓은_0112만_키운다()
+    public void 가로로_넓은_0112와_꼬리_달린_0106만_키운다()
     {
         Assert.True(NoteIconCatalog.ScaleFor("011201") > 1.0);
         Assert.True(NoteIconCatalog.ScaleFor("011204") > 1.0);
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("011101"));
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("011607"));
+        Assert.True(NoteIconCatalog.ScaleFor("010601") > 1.0, "0106 은 꼬리 선 때문에 구슬이 작아서 키운다");
     }
 
     // premultiplied BGRA 한 픽셀을 쓴다.
@@ -48,25 +49,80 @@ public sealed class NoteIconTests
         bgra[i + 3] = a;
     }
 
+    // 본체(밝은 파랑 10x10)와 그 아래 그림자(가로 띠)를 가진 그림을 만든다.
+    private static (byte[] Pixels, int Width, int Height) WithShadow(byte r, byte g, byte b, byte a, int shadowWidth = 50, int shadowRows = 8)
+    {
+        const int w = 60, h = 40;
+        var pixels = new byte[w * h * 4];
+        for (var y = 0; y < 10; y++)
+            for (var x = 25; x < 35; x++)
+                Put(pixels, w, x, y, 100, 150, 255, 255);
+        for (var y = 25; y < 25 + shadowRows; y++)
+            for (var x = (w - shadowWidth) / 2; x < (w + shadowWidth) / 2; x++)
+                Put(pixels, w, x, y, r, g, b, a);
+        return (pixels, w, h);
+    }
+
     [Fact]
     public void 그림자는_지우고_본체만_남긴다()
     {
-        const int w = 20, h = 20;
-        var pixels = new byte[w * h * 4];
-
-        // 위쪽 10x10 은 본체(밝은 파랑), 아래쪽에 그림자색(반투명 남보라) 가로 띠.
-        for (var y = 0; y < 10; y++)
-            for (var x = 5; x < 15; x++)
-                Put(pixels, w, x, y, 100, 150, 255, 255);
-        for (var y = 15; y < 19; y++)
-            for (var x = 2; x < 18; x++)
-                Put(pixels, w, x, y, 29, 7, 62, 78);
+        var (pixels, w, h) = WithShadow(29, 7, 62, 78);
 
         var cleaned = NoteIconPixels.Clean(pixels, w, h, w * 4);
 
         Assert.NotNull(cleaned);
         Assert.Equal(10, cleaned!.Value.Width);
         Assert.Equal(10, cleaned.Value.Height);
+    }
+
+    [Theory]
+    [InlineData(26, 9, 62, 58)]   // 공중 노트의 그림자: 알파가 더 낮다
+    [InlineData(28, 9, 61, 54)]
+    [InlineData(86, 98, 255, 68)] // 공중 노트 몸 아래로 이어지는 푸른 막대
+    public void 그림자색이_달라도_가장_많은_반투명_색을_그림자로_본다(byte r, byte g, byte b, byte a)
+    {
+        var (pixels, w, h) = WithShadow(r, g, b, a);
+
+        var cleaned = NoteIconPixels.Clean(pixels, w, h, w * 4);
+
+        Assert.NotNull(cleaned);
+        Assert.Equal(10, cleaned!.Value.Height);
+    }
+
+    [Fact]
+    public void 몸이_반투명이어도_같은_값이_수백_개_겹치지_않으면_지우지_않는다()
+    {
+        // 고스트처럼 반투명한 몸. 알파가 100 이하여도 픽셀마다 값이 조금씩 다르다.
+        const int w = 40, h = 40;
+        var pixels = new byte[w * h * 4];
+        for (var y = 5; y < 35; y++)
+            for (var x = 5; x < 35; x++)
+                Put(pixels, w, x, y, (byte)(180 + (x % 7)), (byte)(80 + (y % 11)), (byte)(170 + ((x + y) % 13)), (byte)(60 + ((x * y) % 40)));
+
+        var cleaned = NoteIconPixels.Clean(pixels, w, h, w * 4);
+
+        Assert.NotNull(cleaned);
+        Assert.Equal(30, cleaned!.Value.Width);
+        Assert.Equal(30, cleaned.Value.Height);
+    }
+
+    [Fact]
+    public void 그림자가_멀리_떨어져_있어도_본체_크기에_영향을_주지_않는다()
+    {
+        // 공중 노트: 본체 아래 한참 떨어진 곳에 그림자. 지우지 않으면 그림 높이가 그만큼 늘어난다.
+        const int w = 60, h = 200;
+        var pixels = new byte[w * h * 4];
+        for (var y = 0; y < 30; y++)
+            for (var x = 10; x < 50; x++)
+                Put(pixels, w, x, y, 255, 120, 220, 255);
+        for (var y = 170; y < 185; y++)
+            for (var x = 5; x < 55; x++)
+                Put(pixels, w, x, y, 26, 9, 62, 58);
+
+        var cleaned = NoteIconPixels.Clean(pixels, w, h, w * 4);
+
+        Assert.NotNull(cleaned);
+        Assert.Equal(30, cleaned!.Value.Height);
     }
 
     [Fact]

@@ -35,6 +35,9 @@ public sealed class NoteIconCatalog
     private static readonly Dictionary<string, double> ScaleByKind = new()
     {
         ["12"] = 38.0 / 30.0,
+
+        // 0106 은 구슬 오른쪽에 길게 꼬리 선이 달려 있어서, 폭에 맞추면 구슬이 18px 로 줄어든다.
+        ["06"] = 1.7,
     };
 
     private readonly string _folder;
@@ -155,9 +158,13 @@ internal static class NoteIconImage
 // 픽셀만 다루는 부분. 화면 없이 단위 테스트할 수 있게 따로 뗐다.
 public static class NoteIconPixels
 {
-    // 게임이 노트 밑에 깔아 둔 그림자의 색(반투명 남보라).
-    private const int ShadowB = 62, ShadowG = 7, ShadowR = 29;
-    private const int ShadowTolerance = 6;
+    // 반투명(알파 이 값 이하)이면서 같은 색이 이만큼 많이 모여 있으면 그림자로 본다.
+    // 게임은 노트 밑에 반투명 남보라 타원을 깔아 두고, 공중 노트는 그것이 멀리 떨어져 있거나
+    // 몸 아래로 푸른 막대로 이어진다. 색은 그림마다 조금씩 달라서(알파 54~78) 고정값으로 비교하지 않고
+    // 그림에서 가장 많이 나오는 반투명 색을 찾는다. 고스트처럼 몸 전체가 반투명이어도
+    // 같은 값이 수백 개씩 겹치지는 않아서 걸리지 않는다.
+    private const int ShadowMaxAlpha = 100;
+    private const int ShadowMinPixels = 300;
 
     // 이 값보다 가로가 훨씬 짧고 세로로 긴 그림(줄에 매달린 해머)은 줄을 자르고 머리만 남긴다.
     private const double TallRatio = 2.0;
@@ -187,6 +194,8 @@ public static class NoteIconPixels
             }
         }
 
+        var shadow = FindShadowColor(alpha, colors);
+
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
@@ -200,9 +209,11 @@ public static class NoteIconPixels
                 var g = colors[(index * 4) + 1];
                 var r = colors[(index * 4) + 2];
 
-                var isShadow = Math.Abs(b - ShadowB) <= ShadowTolerance
-                    && Math.Abs(g - ShadowG) <= ShadowTolerance
-                    && Math.Abs(r - ShadowR) <= ShadowTolerance;
+                // 알파가 작을수록 원래 색을 되살리는 오차가 커서, 그만큼 넉넉하게 같은 색으로 본다.
+                var isShadow = shadow is { } found
+                    && a <= ShadowMaxAlpha
+                    && Math.Max(Math.Abs(b - found.B), Math.Max(Math.Abs(g - found.G), Math.Abs(r - found.R)))
+                        <= 12 + (600 / a);
 
                 // 그림자 가장자리는 안티앨리어싱으로 반투명 어두운 점이 남는다. 아래쪽에서만 걷어낸다.
                 var isShadowFringe = y >= height * 0.75 && a < 255 && g < 100 && r < 150 && b < 150;
@@ -269,6 +280,32 @@ public static class NoteIconPixels
         }
 
         return (output, boxWidth, boxHeight);
+    }
+
+    // 반투명 픽셀 중 가장 많이 나오는 색(원래 색). 충분히 많지 않으면 그림자가 없다고 본다.
+    private static (int B, int G, int R)? FindShadowColor(byte[] alpha, byte[] colors)
+    {
+        var counts = new Dictionary<(int, int, int, int), int>();
+        var best = ((0, 0, 0, 0), 0);
+
+        for (var index = 0; index < alpha.Length; index++)
+        {
+            var a = alpha[index];
+            if (a == 0 || a > ShadowMaxAlpha)
+                continue;
+
+            var key = (colors[(index * 4) + 0], colors[(index * 4) + 1], colors[(index * 4) + 2], a);
+            counts.TryGetValue(key, out var count);
+            counts[key] = ++count;
+            if (count > best.Item2)
+                best = (key, count);
+        }
+
+        if (best.Item2 < ShadowMinPixels)
+            return null;
+
+        var (blue, green, red, _) = best.Item1;
+        return (blue, green, red);
     }
 
     private static byte Unpremultiply(byte value, byte alpha) =>
