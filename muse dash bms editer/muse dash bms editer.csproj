@@ -28,6 +28,12 @@
     <EmbeddedResource Include="Profiles\*.json" LogicalName="profiles/%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- 노트 그림(note_icons/<UID 6자리>.png). 게임에서 뽑은 그림이라 저장소에도 배포본에도 넣지 않는다.
+       프로젝트 폴더에 note_icons 가 있으면 빌드 출력 옆으로 복사해서, 개발 중에 바로 보이게만 한다. -->
+  <ItemGroup Condition="Exists('note_icons')">
+    <None Include="note_icons\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" LinkBase="note_icons" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />

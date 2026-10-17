@@ -15,6 +15,18 @@ public sealed partial class MainWindowViewModel
     public BulkObservableCollection<BmsWavItem> WavList { get; } = new();
     [ObservableProperty] private BmsWavItem? _selectedWavItem;
 
+    // 노트 그림. 키음 표가 바뀔 때만 다시 만든다. 그림 폴더(note_icons)가 없으면 비어 있고,
+    // 그때 격자는 예전처럼 단색으로 그린다.
+    private readonly NoteIconCatalog _noteIconCatalog = new(NoteIconCatalog.DefaultFolder);
+    private IReadOnlyDictionary<string, NoteIcon> _noteIcons = new Dictionary<string, NoteIcon>();
+    public IReadOnlyDictionary<string, NoteIcon> NoteIcons => _noteIcons;
+
+    private void RefreshNoteIcons()
+    {
+        _noteIcons = _noteIconCatalog.Build(Chart.WavTable);
+        OnPropertyChanged(nameof(NoteIcons));
+    }
+
     private IReadOnlyList<BmsNote>? _notesCache;
     public IReadOnlyList<BmsNote> Notes => _notesCache ??= Chart.Notes.ToArray();
 

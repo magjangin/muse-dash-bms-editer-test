@@ -134,6 +134,7 @@
                         IsHorizontalView="{Binding IsHorizontalView}"
                         Notes="{Binding Notes}"
                         IsCircleNoteShape="{Binding IsCircleNoteShape}"
+                        NoteIcons="{Binding NoteIcons}"
                         IsEditMode="{Binding IsEditMode}"
                         SnapToGrid="{Binding SnapToGrid}"
                         SelectedNotes="{Binding SelectedNotes}"

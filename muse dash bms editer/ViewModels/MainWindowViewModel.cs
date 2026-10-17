@@ -209,6 +209,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             InvalidateWavSnapshot();
             RecordHistory("키음 표 변경");
             RecomputeHolds();
+            RefreshNoteIcons();
         };
 
         // 빈 문서의 바닥을 깔아 둔다. 이게 없으면 되돌리기가 비교할 "이전 상태"를 갖지 못해서
