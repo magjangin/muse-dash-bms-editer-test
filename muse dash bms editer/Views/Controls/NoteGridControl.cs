@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Media.Immutable;
 using bms_editer.Models;
+using bms_editer.Services;
 
 namespace bms_editer.Views.Controls;
 
@@ -23,6 +25,16 @@ public sealed class NoteGridControl : TimelineControlBase
 
     public static readonly StyledProperty<bool> IsCircleNoteShapeProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsCircleNoteShape));
+
+    // 키음 번호 → 노트 그림. 동그라미 모양일 때 그림이 있는 번호의 노트는 단색 대신 그림으로 그린다.
+    public static readonly StyledProperty<IReadOnlyDictionary<string, NoteIcon>?> NoteIconsProperty =
+        AvaloniaProperty.Register<NoteGridControl, IReadOnlyDictionary<string, NoteIcon>?>(nameof(NoteIcons));
+
+    public IReadOnlyDictionary<string, NoteIcon>? NoteIcons
+    {
+        get => GetValue(NoteIconsProperty);
+        set => SetValue(NoteIconsProperty, value);
+    }
 
     public static readonly StyledProperty<bool> IsEditModeProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsEditMode));
@@ -202,7 +214,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
     static NoteGridControl()
     {
-        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty,
+        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty, NoteIconsProperty,
             SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
@@ -255,6 +267,33 @@ public sealed class NoteGridControl : TimelineControlBase
             return new Size(lanesTotalThickness, timelineLength);
         }
     }
+
+    // 노트 그림이 있으면 그리고 true. 그림은 가로·세로 중 긴 쪽을 지름에 맞추고 비율은 유지한다.
+    // diameter 는 배율을 곱하기 전 크기이고, 레인 폭을 넘지 않게 자른다.
+    private bool TryDrawNoteIcon(DrawingContext context, BmsNote note, Point center, double diameter, double laneThickness)
+    {
+        var icons = NoteIcons;
+        if (icons is null || !icons.TryGetValue(note.WavKey, out var icon))
+            return false;
+
+        var size = Math.Min(diameter * icon.Scale, laneThickness - 2);
+        var image = icon.Image;
+        var scale = size / Math.Max(image.PixelSize.Width, image.PixelSize.Height);
+        var width = image.PixelSize.Width * scale;
+        var height = image.PixelSize.Height * scale;
+
+        using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.HighQuality }))
+        {
+            context.DrawImage(image, new Rect(0, 0, image.PixelSize.Width, image.PixelSize.Height),
+                new Rect(center.X - (width / 2), center.Y - (height / 2), width, height));
+        }
+
+        return true;
+    }
+
+    // 그림이 있는 노트의 지름. 단색 동그라미(15px)보다 키워서 그림이 알아볼 만하게 한다.
+    // 이웃 노트와의 간격은 줌과 BPM 에 달려 있어 여기서 맞추지 않는다. (docs/plans/note_circle_icon.md §1-2)
+    private double NoteIconDiameter(double laneThickness) => Math.Min(30, laneThickness - 4);
 
     public override void Render(DrawingContext context)
     {
@@ -358,7 +397,8 @@ public sealed class NoteGridControl : TimelineControlBase
                     {
                         var radius = Math.Min(7.5, (laneThickness - 4) / 2);
                         var center = new Point(noteTPos, laneOffset + laneThickness / 2);
-                        context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
+                        if (!TryDrawNoteIcon(context, note, center, NoteIconDiameter(laneThickness), laneThickness))
+                            context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
                     }
                     else
                     {
@@ -373,7 +413,8 @@ public sealed class NoteGridControl : TimelineControlBase
                     {
                         var radius = Math.Min(7.5, (laneThickness - 4) / 2);
                         var center = new Point(laneOffset + laneThickness / 2, noteTPos);
-                        context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
+                        if (!TryDrawNoteIcon(context, note, center, NoteIconDiameter(laneThickness), laneThickness))
+                            context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
                     }
                     else
                     {
@@ -386,9 +427,13 @@ public sealed class NoteGridControl : TimelineControlBase
                 if (selectedSet is not null && selectedSet.Contains(note))
                 {
                     var highlightPen = SelectionPen;
+                    // 그림이 있는 노트는 그림보다 2px 큰 테두리로 감싼다. 없으면 예전 그대로 14px.
+                    var half = 7.0;
+                    if (IsCircleNoteShape && NoteIcons is { } iconMap && iconMap.TryGetValue(note.WavKey, out var selectedIcon))
+                        half = Math.Min((laneThickness / 2) - 1, (NoteIconDiameter(laneThickness) * selectedIcon.Scale / 2) + 2);
                     var highlightRect = IsHorizontalView
-                        ? new Rect(noteTPos - 7, laneOffset + 1, 14, laneThickness - 2)
-                        : new Rect(laneOffset + 1, noteTPos - 7, laneThickness - 2, 14);
+                        ? new Rect(noteTPos - half, laneOffset + 1, half * 2, laneThickness - 2)
+                        : new Rect(laneOffset + 1, noteTPos - half, laneThickness - 2, half * 2);
                     context.DrawRectangle(null, highlightPen, highlightRect);
                 }
             }

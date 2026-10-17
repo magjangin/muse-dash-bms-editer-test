@@ -34,3 +34,6 @@ publish/
 
 # Local test/build logs
 *.log
+
+# 게임에서 뽑은 노트 그림(저작물) — 저장소에 넣지 않는다
+note_icons/
