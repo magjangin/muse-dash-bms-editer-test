@@ -29,6 +29,17 @@ public sealed class NoteIconTests
     public void UID_는_파일명_앞_여섯_자리_숫자다(string text, string? expected) =>
         Assert.Equal(expected, NoteIconCatalog.UidOf(text));
 
+    [Theory]
+    [InlineData("031107", NoteDirection.Up)]
+    [InlineData("021210", NoteDirection.Up)]
+    [InlineData("031113", NoteDirection.Down)]
+    [InlineData("081116", NoteDirection.Down)]
+    [InlineData("031101", NoteDirection.None)]
+    [InlineData("031104", NoteDirection.None)]
+    [InlineData("0311", NoteDirection.None)]
+    public void 끝_두_자리로_위_아래_등장_방향을_안다(string uid, NoteDirection expected) =>
+        Assert.Equal(expected, NoteIconCatalog.DirectionOf(uid));
+
     [Fact]
     public void 가로로_넓은_0112와_꼬리_달린_0106만_키운다()
     {

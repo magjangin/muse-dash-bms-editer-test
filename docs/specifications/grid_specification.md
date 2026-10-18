@@ -17,7 +17,7 @@
 |:---|:---|:---:|:---:|
 | 비트 (마디 한 칸 수) | `BeatSplit` | 16 | 1 ~ 192 |
 | 마디 (박자 수) | `GridMeasure` | 4 | 1 ~ 48 |
-| 세로 줌 | `VerticalZoom` | 8 | 4 ~ 8 |
+| 세로 줌 | `VerticalZoom` | 10 | 10 ~ 16 |
 | 그리드 가로 줌 (레인 폭) | `HorizontalZoom` | 1.5 | 0.25 ~ 4 |
 | 격자에 맞추기 | `SnapToGrid` | 켜짐 | — |
 
@@ -199,12 +199,12 @@ protected double GetGridSpacingScale() => Math.Max(1.0, BeatSplit / (double)Math
 ```
 
 `BeatSplit / GridMeasure` 가 곱해지므로, **비트 수를 늘리면 타임라인도 같이 길어져 칸 간격이 유지됩니다.**
-기본값(`RowHeight 16`, 세로 줌 8, `16/4`)에서 칸 하나의 간격은 다음과 같습니다.
+기본값(`RowHeight 16`, 세로 줌 10, `16/4`)에서 칸 하나의 간격은 다음과 같습니다.
 
 | 상황 | 칸 간격 | 기본값에서 |
 |:---|:---|:---|
-| 음원이 있을 때 | `480 × 세로줌 ÷ BPM` px (분할 수와 무관) | BPM 120 → **32px**, BPM 200 → 19.2px |
-| 음원이 없을 때 | `RowHeight × 세로줌 ÷ GridMeasure` px | **32px** (BPM 무관) |
+| 음원이 있을 때 | `480 × 세로줌 ÷ BPM` px (분할 수와 무관) | BPM 120 → **40px**, BPM 200 → 24px |
+| 음원이 없을 때 | `RowHeight × 세로줌 ÷ GridMeasure` px | **40px** (BPM 무관) |
 
 * **세로 줌**은 시간축 길이만 바꿉니다. 파형의 진폭은 **파형 가로 줌**이 따로 맡습니다.
 * **그리드 가로 줌**은 레인 폭(`40 × 가로 줌` px)만 바꿉니다.

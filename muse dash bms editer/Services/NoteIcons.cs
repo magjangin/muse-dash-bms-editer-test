@@ -9,14 +9,26 @@ using Avalonia.Platform;
 
 namespace bms_editer.Services;
 
+// 몬스터가 등장하는 방향. UID 끝 두 자리(yy)로 알 수 있다: 07·10 위에서, 13·16 아래에서.
+public enum NoteDirection
+{
+    None,
+    Up,
+    Down,
+}
+
 // 격자에 그릴 노트 그림 한 장. 그림은 이미 그림자와 빈 여백을 걷어낸 상태다.
 public sealed class NoteIcon
 {
-    public NoteIcon(Bitmap image, double scale)
+    public NoteIcon(Bitmap image, double scale, NoteDirection direction = NoteDirection.None)
     {
         Image = image;
         Scale = scale;
+        Direction = direction;
     }
+
+    // 위/아래 등장 노트는 같은 그림이라, 그림 구석에 작은 삼각형을 얹어서 구분한다.
+    public NoteDirection Direction { get; }
 
     public Bitmap Image { get; }
 
@@ -81,6 +93,19 @@ public sealed class NoteIconCatalog
     // 해머(종류 15). 줄이 비스듬하거나 가로로 길게 달려서 줄까지 두면 머리가 작아진다.
     private static bool IsHammer(string uid) => uid.Length == 6 && uid.AsSpan(2, 2).SequenceEqual("15");
 
+    public static NoteDirection DirectionOf(string uid)
+    {
+        if (uid.Length != 6)
+            return NoteDirection.None;
+
+        return uid.AsSpan(4, 2) switch
+        {
+            "07" or "10" => NoteDirection.Up,
+            "13" or "16" => NoteDirection.Down,
+            _ => NoteDirection.None,
+        };
+    }
+
     public static double ScaleFor(string uid)
     {
         if (uid.Length != 6)
@@ -127,7 +152,7 @@ public sealed class NoteIconCatalog
                 using var source = new Bitmap(path);
                 var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
                 if (prepared is not null)
-                    icon = new NoteIcon(prepared, ScaleFor(uid));
+                    icon = new NoteIcon(prepared, ScaleFor(uid), DirectionOf(uid));
             }
             catch (Exception)
             {
