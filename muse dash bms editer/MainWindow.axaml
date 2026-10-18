@@ -232,7 +232,7 @@
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock Text="세로 줌" VerticalAlignment="Center" Width="60" />
-                            <Slider Value="{Binding VerticalZoom}" Minimum="4" Maximum="8" Width="150" />
+                            <Slider Value="{Binding VerticalZoom}" Minimum="10" Maximum="16" Width="150" />
                             <TextBlock Text="{Binding VerticalZoom, StringFormat={}{0:0.00}}" VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="4">

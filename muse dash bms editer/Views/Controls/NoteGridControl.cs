@@ -334,8 +334,32 @@ public sealed class NoteGridControl : TimelineControlBase
                 new Rect(center.X - (width / 2), center.Y - (height / 2), width, height));
         }
 
+        if (icon.Direction != NoteDirection.None)
+        {
+            // 그림의 오른쪽 위 구석. 레인 밖으로 나가지 않게 안으로 당긴다.
+            var half = Math.Min(5.0, (laneThickness - 2) / 4);
+            var badge = new Point(
+                Math.Min(center.X + (width / 2) - half, center.X + (laneThickness / 2) - half - 1),
+                center.Y - (height / 2) + half);
+            var tip = icon.Direction == NoteDirection.Up ? -half : half;
+
+            var geometry = new StreamGeometry();
+            using (var ctx = geometry.Open())
+            {
+                ctx.BeginFigure(new Point(badge.X, badge.Y + tip), true);
+                ctx.LineTo(new Point(badge.X + half, badge.Y - tip));
+                ctx.LineTo(new Point(badge.X - half, badge.Y - tip));
+                ctx.EndFigure(true);
+            }
+
+            context.DrawGeometry(DirectionBadgeBrush, DirectionBadgePen, geometry);
+        }
+
         return true;
     }
+
+    private static readonly IBrush DirectionBadgeBrush = new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
+    private static readonly IPen DirectionBadgePen = new Pen(Brushes.Black, 1);
 
     // 그림이 있는 노트의 지름. 단색 동그라미(15px)보다 키워서 그림이 알아볼 만하게 한다.
     // 이웃 노트와의 간격은 줌과 BPM 에 달려 있어 여기서 맞추지 않는다. (docs/plans/note_circle_icon.md §1-2)
