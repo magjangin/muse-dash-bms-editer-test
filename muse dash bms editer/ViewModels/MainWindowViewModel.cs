@@ -149,7 +149,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _beatSplit = 16;
     [ObservableProperty] private int _gridMeasure = 4;
     [ObservableProperty] private double _verticalZoom = 10.0;
-    [ObservableProperty] private double _horizontalZoom = 1.50;
+    [ObservableProperty] private double _horizontalZoom = 2.00;
     [ObservableProperty] private double _waveformHorizontalZoom = 1.00;
     [ObservableProperty] private bool _followPlaybackCursor = true;
     [ObservableProperty] private bool _snapToGrid = true;

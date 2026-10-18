@@ -37,8 +37,23 @@ public sealed class NoteIconTests
     [InlineData("031101", NoteDirection.None)]
     [InlineData("031104", NoteDirection.None)]
     [InlineData("0311", NoteDirection.None)]
+    [InlineData("040107", NoteDirection.None)]   // 보스 액션의 07·10 은 방향이 아니다
+    [InlineData("040110", NoteDirection.None)]
     public void 끝_두_자리로_위_아래_등장_방향을_안다(string uid, NoteDirection expected) =>
         Assert.Equal(expected, NoteIconCatalog.DirectionOf(uid));
+
+    [Theory]
+    [InlineData("040101", BossMarker.Enter)]
+    [InlineData("040102", BossMarker.Exit)]
+    [InlineData("040107", BossMarker.Start)]
+    [InlineData("040109", BossMarker.Start)]
+    [InlineData("040108", BossMarker.End)]
+    [InlineData("040110", BossMarker.End)]
+    [InlineData("041107", BossMarker.None)]
+    [InlineData("000101", BossMarker.None)]
+    [InlineData("040501", BossMarker.None)]
+    public void 보스_연출_노트는_끝_두_자리로_등장_퇴장_시작_끝을_안다(string uid, BossMarker expected) =>
+        Assert.Equal(expected, NoteIconCatalog.BossMarkerOf(uid));
 
     [Fact]
     public void 가로로_넓은_0112와_꼬리_달린_0106만_키운다()
@@ -48,6 +63,14 @@ public sealed class NoteIconTests
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("011101"));
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("011607"));
         Assert.True(NoteIconCatalog.ScaleFor("010601") > 1.0, "0106 은 꼬리 선 때문에 구슬이 작아서 키운다");
+    }
+
+    [Fact]
+    public void 보스_연출_노트는_키워서_그린다()
+    {
+        Assert.True(NoteIconCatalog.ScaleFor("040101") > 1.3);
+        Assert.Equal(NoteIconCatalog.ScaleFor("040101"), NoteIconCatalog.ScaleFor("120110"));
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("041101"));
     }
 
     [Fact]

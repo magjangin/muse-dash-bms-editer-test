@@ -17,15 +17,29 @@ public enum NoteDirection
     Down,
 }
 
+// 보스 연출 노트(xx=01)가 하는 일. 보스 그림 위에 글자로 구분한다.
+public enum BossMarker
+{
+    None,
+    Enter,
+    Exit,
+    Start,
+    End,
+}
+
 // 격자에 그릴 노트 그림 한 장. 그림은 이미 그림자와 빈 여백을 걷어낸 상태다.
 public sealed class NoteIcon
 {
-    public NoteIcon(Bitmap image, double scale, NoteDirection direction = NoteDirection.None)
+    public NoteIcon(Bitmap image, double scale, NoteDirection direction = NoteDirection.None, BossMarker marker = BossMarker.None)
     {
         Image = image;
         Scale = scale;
         Direction = direction;
+        Marker = marker;
     }
+
+    // 보스 등장·퇴장·액션 시작·끝. 같은 보스 그림이라 구석에 글자를 얹어서 구분한다.
+    public BossMarker Marker { get; }
 
     // 위/아래 등장 노트는 같은 그림이라, 그림 구석에 작은 삼각형을 얹어서 구분한다.
     public NoteDirection Direction { get; }
@@ -90,9 +104,28 @@ public sealed class NoteIconCatalog
     // 해머(종류 15). 줄이 비스듬하거나 가로로 길게 달려서 줄까지 두면 머리가 작아진다.
     private static bool IsHammer(string uid) => uid.Length == 6 && uid.AsSpan(2, 2).SequenceEqual("15");
 
+    // 씬 번호가 00 이 아니고 종류가 01 이면 보스 연출 노트다. 끝 두 자리 07·08·09·10 은 방향이 아니라 액션 번호다.
+    private static bool IsBossAction(string uid) =>
+        uid.Length == 6 && !uid.AsSpan(0, 2).SequenceEqual("00") && uid.AsSpan(2, 2).SequenceEqual("01");
+
+    public static BossMarker BossMarkerOf(string uid)
+    {
+        if (!IsBossAction(uid))
+            return BossMarker.None;
+
+        return uid.AsSpan(4, 2) switch
+        {
+            "01" => BossMarker.Enter,
+            "02" => BossMarker.Exit,
+            "07" or "09" => BossMarker.Start,
+            "08" or "10" => BossMarker.End,
+            _ => BossMarker.None,
+        };
+    }
+
     public static NoteDirection DirectionOf(string uid)
     {
-        if (uid.Length != 6)
+        if (uid.Length != 6 || IsBossAction(uid))
             return NoteDirection.None;
 
         return uid.AsSpan(4, 2) switch
@@ -104,6 +137,9 @@ public sealed class NoteIconCatalog
     }
 
     private const double AirDoubleNoteScale = 1.3;
+
+    // 보스는 몸집이 커서 노트 크기로는 작게 보인다. 보스 연출 노트(종류 01)는 키워서 그린다.
+    private const double BossScale = 2.0;
 
     // 종류가 05 이고 공중(yy 04, 위 10, 아래 16)인 그림.
     private static bool IsAirDoubleNote(string uid) =>
@@ -121,6 +157,9 @@ public sealed class NoteIconCatalog
             return scale;
 
         // 복선(05)의 공중은 어느 씬이든 위로 길쭉한 막대가 달려 몸통이 작아 보인다.
+        if (IsBossAction(uid))
+            return BossScale;
+
         return IsAirDoubleNote(uid) ? AirDoubleNoteScale : 1.0;
     }
 
@@ -159,7 +198,7 @@ public sealed class NoteIconCatalog
                 using var source = new Bitmap(path);
                 var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
                 if (prepared is not null)
-                    icon = new NoteIcon(prepared, ScaleFor(uid), DirectionOf(uid));
+                    icon = new NoteIcon(prepared, ScaleFor(uid), DirectionOf(uid), BossMarkerOf(uid));
             }
             catch (Exception)
             {

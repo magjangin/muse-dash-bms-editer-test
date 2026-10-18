@@ -355,7 +355,51 @@ public sealed class NoteGridControl : TimelineControlBase
             context.DrawGeometry(DirectionBadgeBrush, DirectionBadgePen, geometry);
         }
 
+        if (icon.Marker != BossMarker.None)
+            DrawBossMarker(context, icon.Marker, center, width, height);
+
         return true;
+    }
+
+    // 보스 그림 오른쪽 위 구석에 작은 이름표를 붙인다. 보스 연출 노트에는 방향 삼각형이 붙지 않아서 겹치지 않는다.
+    private void DrawBossMarker(DrawingContext context, BossMarker marker, Point center, double width, double height)
+    {
+        var (label, color) = marker switch
+        {
+            BossMarker.Enter => ("등장", Color.FromRgb(60, 190, 90)),
+            BossMarker.Exit => ("퇴장", Color.FromRgb(210, 80, 80)),
+            BossMarker.Start => ("시작", Color.FromRgb(60, 140, 230)),
+            _ => ("끝", Color.FromRgb(230, 150, 40)),
+        };
+
+        var text = GetOrCreateBossMarkerText(label);
+        var padX = 3.0;
+        var tagWidth = text.Width + (padX * 2);
+        var tagHeight = text.Height + 1;
+        var left = center.X + (width / 2) - tagWidth + BossMarkerShiftRight;
+        var top = center.Y - (height / 2);
+        var rect = new Rect(left, top, tagWidth, tagHeight);
+
+        context.DrawRectangle(new ImmutableSolidColorBrush(color), BossMarkerPen, rect, 3, 3);
+        context.DrawText(text, new Point(left + padX, top + 0.5));
+    }
+
+    // 이름표를 그림 오른쪽 끝보다 이만큼 더 오른쪽으로 둔다. 보스 그림이 작아서 글자가 몸을 가린다.
+    private const double BossMarkerShiftRight = 4;
+
+    private static readonly IPen BossMarkerPen = new Pen(Brushes.Black, 1);
+    private readonly Dictionary<string, FormattedText> _bossMarkerTextCache = new();
+
+    private FormattedText GetOrCreateBossMarkerText(string label)
+    {
+        if (!_bossMarkerTextCache.TryGetValue(label, out var text))
+        {
+            text = new FormattedText(label, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                new Typeface(LaneHeaderTypeface.FontFamily, FontStyle.Normal, FontWeight.Bold), 10.0, Brushes.White);
+            _bossMarkerTextCache[label] = text;
+        }
+
+        return text;
     }
 
     private static readonly IBrush DirectionBadgeBrush = new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
