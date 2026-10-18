@@ -85,6 +85,57 @@ public sealed class NoteIconTests
         Assert.Equal(10, cleaned.Value.Height);
     }
 
+    [Fact]
+    public void 해머는_가는_줄을_지우고_굵은_몸통만_남긴다()
+    {
+        // 몸통(30x30)에서 비스듬히 뻗어 나간 두 줄 굵기 선.
+        const int w = 200, h = 120;
+        var pixels = new byte[w * h * 4];
+        for (var y = 60; y < 90; y++)
+            for (var x = 10; x < 40; x++)
+                Put(pixels, w, x, y, 100, 150, 255, 255);
+        for (var x = 40; x < 190; x++)
+        {
+            var y = 60 - ((x - 40) / 3);
+            Put(pixels, w, x, y, 80, 20, 120, 255);
+            Put(pixels, w, x, y + 1, 80, 20, 120, 255);
+        }
+
+        var cleaned = NoteIconPixels.Clean(pixels, w, h, w * 4, bodyOnly: true);
+
+        Assert.NotNull(cleaned);
+        Assert.InRange(cleaned!.Value.Width, 30, 36);
+        Assert.InRange(cleaned.Value.Height, 30, 36);
+    }
+
+    [Fact]
+    public void 해머_몸통이_기울어져_있으면_가로로_눕힌다()
+    {
+        // 가로 12 x 세로 36 막대를 30도 기울여 그린다. 눕히면 가로가 세로보다 훨씬 길어야 한다.
+        const int w = 120, h = 120;
+        var pixels = new byte[w * h * 4];
+        var angle = 30 * Math.PI / 180;
+        for (var y = -18; y < 18; y++)
+        {
+            for (var x = -6; x < 6; x++)
+            {
+                var px = (int)Math.Round(60 + (x * Math.Cos(angle)) - (y * Math.Sin(angle)));
+                var py = (int)Math.Round(60 + (x * Math.Sin(angle)) + (y * Math.Cos(angle)));
+                Put(pixels, w, px, py, 100, 150, 255, 255);
+                Put(pixels, w, px + 1, py, 100, 150, 255, 255);
+            }
+        }
+
+        var tilted = NoteIconPixels.Clean(pixels, w, h, w * 4);
+        var upright = NoteIconPixels.Clean(pixels, w, h, w * 4, bodyOnly: true);
+
+        Assert.NotNull(tilted);
+        Assert.NotNull(upright);
+        Assert.True(tilted!.Value.Width > 25, "기울어진 채로는 가로가 넓다");
+        Assert.InRange(upright!.Value.Height, 10, 18);
+        Assert.InRange(upright.Value.Width, 32, 42);
+    }
+
     [Theory]
     [InlineData(26, 9, 62, 58)]   // 공중 노트의 그림자: 알파가 더 낮다
     [InlineData(28, 9, 61, 54)]

@@ -78,6 +78,9 @@ public sealed class NoteIconCatalog
         return name.Substring(0, 6);
     }
 
+    // 해머(종류 15). 줄이 비스듬하거나 가로로 길게 달려서 줄까지 두면 머리가 작아진다.
+    private static bool IsHammer(string uid) => uid.Length == 6 && uid.AsSpan(2, 2).SequenceEqual("15");
+
     public static double ScaleFor(string uid)
     {
         if (uid.Length != 6)
@@ -122,7 +125,7 @@ public sealed class NoteIconCatalog
             try
             {
                 using var source = new Bitmap(path);
-                var prepared = NoteIconImage.Prepare(source);
+                var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
                 if (prepared is not null)
                     icon = new NoteIcon(prepared, ScaleFor(uid));
             }
@@ -141,7 +144,7 @@ public sealed class NoteIconCatalog
 // 게임에서 뽑은 그림을 그대로 쓰면 그림자와 긴 줄 때문에 본체가 작아진다. 불러올 때 한 번 다듬는다.
 internal static class NoteIconImage
 {
-    public static Bitmap? Prepare(Bitmap source)
+    public static Bitmap? Prepare(Bitmap source, bool bodyOnly = false)
     {
         var size = source.PixelSize;
         var bitmap = new WriteableBitmap(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
@@ -156,7 +159,7 @@ internal static class NoteIconImage
             Marshal.Copy(frame.Address, pixels, 0, pixels.Length);
         }
 
-        var cleaned = NoteIconPixels.Clean(pixels, size.Width, size.Height, stride);
+        var cleaned = NoteIconPixels.Clean(pixels, size.Width, size.Height, stride, bodyOnly);
         if (cleaned is null)
             return null;
 
@@ -188,7 +191,8 @@ public static class NoteIconPixels
 
     // 입력은 premultiplied BGRA. 돌려주는 것은 위 여백·아래 여백을 자른 같은 형식의 픽셀이다.
     // 보이는 픽셀이 하나도 없으면 null.
-    public static (byte[] Pixels, int Width, int Height)? Clean(byte[] bgra, int width, int height, int stride)
+    // bodyOnly 이면 줄처럼 가는 부분을 모두 지우고 굵은 몸통만 남긴다(해머).
+    public static (byte[] Pixels, int Width, int Height)? Clean(byte[] bgra, int width, int height, int stride, bool bodyOnly = false)
     {
         var alpha = new byte[width * height];
         var colors = new byte[width * height * 4];
@@ -238,6 +242,12 @@ public static class NoteIconPixels
                 if (isShadow || isShadowFringe)
                     alpha[index] = 0;
             }
+        }
+
+        if (bodyOnly)
+        {
+            KeepBody(alpha, width, height);
+            (bgra, alpha, width, height, stride) = StandUp(bgra, alpha, width, height, stride);
         }
 
         var box = BoundingBox(alpha, width, height, 0, height);
@@ -297,6 +307,229 @@ public static class NoteIconPixels
         }
 
         return (output, boxWidth, boxHeight);
+    }
+
+    // 해머는 줄 방향으로 기울어져 날아오는 모습이라 몸통도 비스듬하다. 격자에서는 똑바로 세워 둔다.
+    // 몸통의 긴 쪽 축(2차 모멘트의 주축)이 가로가 되도록 돌린다. 줄에 매달린 통이 옆으로 누운 모습(예전 그림과 같다).
+    // 90도를 넘게 돌지는 않아서 뒤집히지 않는다.
+    private static (byte[] Bgra, byte[] Alpha, int Width, int Height, int Stride) StandUp(
+        byte[] bgra, byte[] alpha, int width, int height, int stride)
+    {
+        double count = 0, sumX = 0, sumY = 0;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                if (alpha[(y * width) + x] <= 40)
+                    continue;
+
+                count++;
+                sumX += x;
+                sumY += y;
+            }
+        }
+
+        if (count == 0)
+            return (bgra, alpha, width, height, stride);
+
+        var cx = sumX / count;
+        var cy = sumY / count;
+        double mu20 = 0, mu02 = 0, mu11 = 0;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                if (alpha[(y * width) + x] <= 40)
+                    continue;
+
+                var dx = x - cx;
+                var dy = y - cy;
+                mu20 += dx * dx;
+                mu02 += dy * dy;
+                mu11 += dx * dy;
+            }
+        }
+
+        // 거의 둥근 몸통은 긴 쪽이 없어서 방향이 흔들린다. 그런 그림은 그대로 둔다.
+        var mean = (mu20 + mu02) / 2;
+        var spread = Math.Sqrt((((mu20 - mu02) / 2) * ((mu20 - mu02) / 2)) + (mu11 * mu11));
+        if (mean - spread <= 0 || (mean + spread) / (mean - spread) < 1.15)
+            return (bgra, alpha, width, height, stride);
+
+        // 주축이 +x 에서 아래쪽으로 theta 만큼 기울어 있다. 가로(0도)로 만들려면 -theta 만큼 시계 방향으로 돈다.
+        var theta = 0.5 * Math.Atan2(2 * mu11, mu20 - mu02);
+        var phi = -theta;
+        while (phi > Math.PI / 2)
+            phi -= Math.PI;
+        while (phi <= -Math.PI / 2)
+            phi += Math.PI;
+
+        if (Math.Abs(phi) < Math.PI / 180)
+            return (bgra, alpha, width, height, stride);
+
+        var cos = Math.Cos(phi);
+        var sin = Math.Sin(phi);
+
+        // 지운 자리는 완전히 비운 채로 돌려야 줄 조각이 번지지 않는다.
+        var masked = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                if (alpha[(y * width) + x] == 0)
+                    continue;
+
+                Array.Copy(bgra, (y * stride) + (x * 4), masked, ((y * width) + x) * 4, 4);
+            }
+        }
+
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                if (alpha[(y * width) + x] == 0)
+                    continue;
+
+                var rx = ((x - cx) * cos) - ((y - cy) * sin);
+                var ry = ((x - cx) * sin) + ((y - cy) * cos);
+                minX = Math.Min(minX, rx);
+                maxX = Math.Max(maxX, rx);
+                minY = Math.Min(minY, ry);
+                maxY = Math.Max(maxY, ry);
+            }
+        }
+
+        var outWidth = (int)Math.Ceiling(maxX - minX) + 3;
+        var outHeight = (int)Math.Ceiling(maxY - minY) + 3;
+        var rotated = new byte[outWidth * outHeight * 4];
+        var rotatedAlpha = new byte[outWidth * outHeight];
+
+        for (var y = 0; y < outHeight; y++)
+        {
+            for (var x = 0; x < outWidth; x++)
+            {
+                // 출력 칸에서 거꾸로 원래 그림의 자리를 찾는다.
+                var rx = x + minX - 1;
+                var ry = y + minY - 1;
+                var sx = cx + (rx * cos) + (ry * sin);
+                var sy = cy - (rx * sin) + (ry * cos);
+
+                var x0 = (int)Math.Floor(sx);
+                var y0 = (int)Math.Floor(sy);
+                var fx = sx - x0;
+                var fy = sy - y0;
+                var to = ((y * outWidth) + x) * 4;
+
+                for (var channel = 0; channel < 4; channel++)
+                {
+                    var value =
+                        (Sample(masked, width, height, x0, y0, channel) * (1 - fx) * (1 - fy))
+                        + (Sample(masked, width, height, x0 + 1, y0, channel) * fx * (1 - fy))
+                        + (Sample(masked, width, height, x0, y0 + 1, channel) * (1 - fx) * fy)
+                        + (Sample(masked, width, height, x0 + 1, y0 + 1, channel) * fx * fy);
+                    rotated[to + channel] = (byte)Math.Clamp(Math.Round(value), 0, 255);
+                }
+
+                // 가장자리에 흐릿하게 남은 것은 없는 것으로 본다. 그래야 여백이 잘린다.
+                rotatedAlpha[(y * outWidth) + x] = rotated[to + 3] < 8 ? (byte)0 : rotated[to + 3];
+            }
+        }
+
+        return (rotated, rotatedAlpha, outWidth, outHeight, outWidth * 4);
+    }
+
+    private static double Sample(byte[] data, int width, int height, int x, int y, int channel) =>
+        x < 0 || y < 0 || x >= width || y >= height ? 0 : data[(((y * width) + x) * 4) + channel];
+
+    // 줄의 굵기(몇 픽셀)보다 굵은 덩어리만 남긴다. 몸통을 깎았다가(침식) 다시 부풀려서(팽창)
+    // 줄은 사라지고 몸통은 제자리로 돌아온다. 원래 그림에서 부푼 자리 안의 픽셀만 살려서 몸통 모양은 그대로다.
+    private const int LineThickness = 12;
+    private const int BodyMargin = 3;
+
+    private static void KeepBody(byte[] alpha, int width, int height)
+    {
+        var solid = new bool[width * height];
+        for (var i = 0; i < solid.Length; i++)
+            solid[i] = alpha[i] > 40;
+
+        var radius = LineThickness / 2;
+        var core = Erode(solid, width, height, radius);
+        var grown = Dilate(core, width, height, radius + BodyMargin);
+
+        // 몸통이 하나도 남지 않으면(그림 전체가 가늘면) 손대지 않는다.
+        if (Array.IndexOf(core, true) < 0)
+            return;
+
+        for (var i = 0; i < alpha.Length; i++)
+        {
+            if (!grown[i])
+                alpha[i] = 0;
+        }
+    }
+
+    // 네모 창(반지름 radius) 안이 전부 켜져 있는 곳만 남긴다. 합 표로 계산해서 그림 크기에 거의 비례한다.
+    private static bool[] Erode(bool[] on, int width, int height, int radius)
+    {
+        var sum = SumTable(on, width, height);
+        var result = new bool[on.Length];
+        for (var y = radius; y < height - radius; y++)
+        {
+            for (var x = radius; x < width - radius; x++)
+            {
+                var side = (2 * radius) + 1;
+                result[(y * width) + x] = WindowSum(sum, width, x - radius, y - radius, x + radius, y + radius) == side * side;
+            }
+        }
+
+        return result;
+    }
+
+    // 네모 창 안에 켜진 것이 하나라도 있으면 켠다.
+    private static bool[] Dilate(bool[] on, int width, int height, int radius)
+    {
+        var sum = SumTable(on, width, height);
+        var result = new bool[on.Length];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var left = Math.Max(0, x - radius);
+                var top = Math.Max(0, y - radius);
+                var right = Math.Min(width - 1, x + radius);
+                var bottom = Math.Min(height - 1, y + radius);
+                result[(y * width) + x] = WindowSum(sum, width, left, top, right, bottom) > 0;
+            }
+        }
+
+        return result;
+    }
+
+    // (width+1) x (height+1) 합 표. sum[(y*(width+1))+x] = 왼쪽 위 x×y 칸 안에 켜진 것의 수.
+    private static int[] SumTable(bool[] on, int width, int height)
+    {
+        var stride = width + 1;
+        var sum = new int[stride * (height + 1)];
+        for (var y = 0; y < height; y++)
+        {
+            var rowSum = 0;
+            for (var x = 0; x < width; x++)
+            {
+                rowSum += on[(y * width) + x] ? 1 : 0;
+                sum[((y + 1) * stride) + x + 1] = sum[(y * stride) + x + 1] + rowSum;
+            }
+        }
+
+        return sum;
+    }
+
+    private static int WindowSum(int[] sum, int width, int left, int top, int right, int bottom)
+    {
+        var stride = width + 1;
+        return sum[((bottom + 1) * stride) + right + 1]
+            - sum[(top * stride) + right + 1]
+            - sum[((bottom + 1) * stride) + left]
+            + sum[(top * stride) + left];
     }
 
     // 반투명 픽셀 중 가장 많이 나오는 색(원래 색). 충분히 많지 않으면 그림자가 없다고 본다.

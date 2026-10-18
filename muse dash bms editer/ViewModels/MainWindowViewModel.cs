@@ -157,6 +157,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isHorizontalView;
     [ObservableProperty] private bool _isEditMode;
     [ObservableProperty] private bool _isCircleNoteShape;
+    [ObservableProperty] private bool _hideUnusedLanes;
 
     // 키음 팔레트 창의 보기 모드(0 목록, 1 보통, 2 큰, 3 아주 큰 아이콘)
     [ObservableProperty] private int _wavPaletteViewModeIndex = 2;

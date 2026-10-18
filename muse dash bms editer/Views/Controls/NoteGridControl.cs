@@ -26,6 +26,52 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<bool> IsCircleNoteShapeProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsCircleNoteShape));
 
+    // 켜면 노트가 하나도 없는 레인을 그리지 않는다. 레인이 줄면 가로 줌을 키워 그림을 크게 볼 수 있다.
+    public static readonly StyledProperty<bool> HideUnusedLanesProperty =
+        AvaloniaProperty.Register<NoteGridControl, bool>(nameof(HideUnusedLanes));
+
+    public bool HideUnusedLanes
+    {
+        get => GetValue(HideUnusedLanesProperty);
+        set => SetValue(HideUnusedLanesProperty, value);
+    }
+
+    private IReadOnlyList<LaneDefinition>? _visibleLanesCache;
+    private IReadOnlyList<LaneDefinition>? _visibleLanesSourceLanes;
+    private IReadOnlyList<BmsNote>? _visibleLanesSourceNotes;
+
+    // 화면에 그리고 클릭을 맞춰 볼 레인. 숨김이 꺼져 있으면 Lanes 그대로다.
+    // 노트가 하나도 없으면 전부 숨기지 않고 그대로 둔다(빈 화면이 되면 켠 줄도 모른다).
+    private IReadOnlyList<LaneDefinition>? VisibleLanes
+    {
+        get
+        {
+            var all = Lanes;
+            var notes = Notes;
+            if (all is null || !HideUnusedLanes || notes is null || notes.Count == 0)
+                return all;
+
+            if (ReferenceEquals(all, _visibleLanesSourceLanes) && ReferenceEquals(notes, _visibleLanesSourceNotes))
+                return _visibleLanesCache;
+
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = 0; i < notes.Count; i++)
+                used.Add(notes[i].LaneId);
+
+            var visible = new List<LaneDefinition>(all.Count);
+            for (var i = 0; i < all.Count; i++)
+            {
+                if (used.Contains(all[i].Id))
+                    visible.Add(all[i]);
+            }
+
+            _visibleLanesSourceLanes = all;
+            _visibleLanesSourceNotes = notes;
+            _visibleLanesCache = visible.Count == 0 ? all : visible;
+            return _visibleLanesCache;
+        }
+    }
+
     // 키음 번호 → 노트 그림. 동그라미 모양일 때 그림이 있는 번호의 노트는 단색 대신 그림으로 그린다.
     public static readonly StyledProperty<IReadOnlyDictionary<string, NoteIcon>?> NoteIconsProperty =
         AvaloniaProperty.Register<NoteGridControl, IReadOnlyDictionary<string, NoteIcon>?>(nameof(NoteIcons));
@@ -214,9 +260,9 @@ public sealed class NoteGridControl : TimelineControlBase
 
     static NoteGridControl()
     {
-        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty, NoteIconsProperty,
+        AffectsRender<NoteGridControl>(HideUnusedLanesProperty, LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty, NoteIconsProperty,
             SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty);
-        AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
+        AffectsMeasure<NoteGridControl>(HideUnusedLanesProperty, LanesProperty, NotesProperty, LaneWidthProperty);
     }
 
     private Point? _dragStartPoint;
@@ -254,7 +300,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        var laneCount = Lanes?.Count ?? 0;
+        var laneCount = VisibleLanes?.Count ?? 0;
         var timelineLength = GetTimelineHeight();
         var lanesTotalThickness = laneCount * LaneWidth * HorizontalZoom;
 
@@ -293,11 +339,11 @@ public sealed class NoteGridControl : TimelineControlBase
 
     // 그림이 있는 노트의 지름. 단색 동그라미(15px)보다 키워서 그림이 알아볼 만하게 한다.
     // 이웃 노트와의 간격은 줌과 BPM 에 달려 있어 여기서 맞추지 않는다. (docs/plans/note_circle_icon.md §1-2)
-    private double NoteIconDiameter(double laneThickness) => Math.Min(30, laneThickness - 4);
+    private double NoteIconDiameter(double laneThickness) => Math.Min(38, laneThickness - 4);
 
     public override void Render(DrawingContext context)
     {
-        var lanes = Lanes;
+        var lanes = VisibleLanes;
         if (lanes is null || lanes.Count == 0)
             return;
 
@@ -568,7 +614,7 @@ public sealed class NoteGridControl : TimelineControlBase
         Focus();
 
         var point = e.GetCurrentPoint(this);
-        var lanes = Lanes;
+        var lanes = VisibleLanes;
         if (lanes is null || lanes.Count == 0 || Bpm <= 0)
             return;
 
@@ -677,7 +723,7 @@ public sealed class NoteGridControl : TimelineControlBase
         _dragCurrentPoint = null;
         e.Pointer.Capture(null);
 
-        var lanes = Lanes;
+        var lanes = VisibleLanes;
         var notes = Notes;
         if (lanes is null || lanes.Count == 0 || notes is null)
         {
