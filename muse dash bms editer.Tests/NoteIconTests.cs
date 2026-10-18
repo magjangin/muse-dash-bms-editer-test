@@ -51,6 +51,18 @@ public sealed class NoteIconTests
     }
 
     [Fact]
+    public void 복선의_공중만_어느_씬이든_조금_키운다()
+    {
+        Assert.True(NoteIconCatalog.ScaleFor("010504") > 1.0);
+        Assert.True(NoteIconCatalog.ScaleFor("030510") > 1.0);
+        Assert.True(NoteIconCatalog.ScaleFor("050516") > 1.0);
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("010501"));
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("030507"));
+        Assert.Equal(1.0, NoteIconCatalog.ScaleFor("031004"));
+        Assert.Equal(NoteIconCatalog.ScaleFor("010504"), NoteIconCatalog.ScaleFor("020504"));
+    }
+
+    [Fact]
     public void 배율은_씬이_다르면_번지지_않는다()
     {
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("020601"));

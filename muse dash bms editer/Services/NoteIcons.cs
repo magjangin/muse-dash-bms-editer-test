@@ -56,9 +56,6 @@ public sealed class NoteIconCatalog
 
         // 0211 은 낮고 넓은 날개 네모라 21px 높이로 작아 보였다.
         ["0211"] = 1.2,
-
-        // 020504 는 무지개 막대가 길어서 몸통이 16px 로 줄어든다. 같은 0205 의 01 은 그대로 둔다.
-        ["020504"] = 1.4,
     };
 
     private readonly string _folder;
@@ -106,6 +103,12 @@ public sealed class NoteIconCatalog
         };
     }
 
+    private const double AirDoubleNoteScale = 1.3;
+
+    // 종류가 05 이고 공중(yy 04, 위 10, 아래 16)인 그림.
+    private static bool IsAirDoubleNote(string uid) =>
+        uid.AsSpan(2, 2).SequenceEqual("05") && uid.AsSpan(4, 2) is "04" or "10" or "16";
+
     public static double ScaleFor(string uid)
     {
         if (uid.Length != 6)
@@ -114,7 +117,11 @@ public sealed class NoteIconCatalog
         if (ScaleByKind.TryGetValue(uid, out var exact))
             return exact;
 
-        return ScaleByKind.TryGetValue(uid.Substring(0, 4), out var scale) ? scale : 1.0;
+        if (ScaleByKind.TryGetValue(uid.Substring(0, 4), out var scale))
+            return scale;
+
+        // 복선(05)의 공중은 어느 씬이든 위로 길쭉한 막대가 달려 몸통이 작아 보인다.
+        return IsAirDoubleNote(uid) ? AirDoubleNoteScale : 1.0;
     }
 
     // 키음 번호 → 그림. 그림이 있는 번호만 담는다.
