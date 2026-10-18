@@ -18,7 +18,7 @@
 | 비트 (마디 한 칸 수) | `BeatSplit` | 16 | 1 ~ 192 |
 | 마디 (박자 수) | `GridMeasure` | 4 | 1 ~ 48 |
 | 세로 줌 | `VerticalZoom` | 10 | 10 ~ 16 |
-| 그리드 가로 줌 (레인 폭) | `HorizontalZoom` | 1.5 | 0.25 ~ 4 |
+| 그리드 가로 줌 (레인 폭) | `HorizontalZoom` | 2 | 0.25 ~ 4 |
 | 격자에 맞추기 | `SnapToGrid` | 켜짐 | — |
 
 ---
