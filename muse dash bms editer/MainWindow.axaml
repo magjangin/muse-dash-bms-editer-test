@@ -25,6 +25,8 @@
                 <Separator />
                 <MenuItem Header="저장" Click="OnSaveFileClick" InputGesture="Ctrl+S" />
                 <MenuItem Header="다른 이름으로 저장..." Click="OnSaveFileAsClick" InputGesture="Ctrl+Shift+S" />
+                <Separator />
+                <MenuItem Header="탐색기에서 BMS 파일 연결 등록..." Click="OnRegisterFileAssociationClick" />
             </MenuItem>
             <MenuItem Header="편집 (E)">
                 <MenuItem Header="{Binding UndoMenuHeader}" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />

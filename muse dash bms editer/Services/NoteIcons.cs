@@ -167,8 +167,6 @@ public sealed class NoteIconCatalog
     public IReadOnlyDictionary<string, NoteIcon> Build(IEnumerable<KeyValuePair<string, string>> wavTable)
     {
         var result = new Dictionary<string, NoteIcon>(StringComparer.OrdinalIgnoreCase);
-        if (!Directory.Exists(_folder))
-            return result;
 
         foreach (var (key, text) in wavTable)
         {
@@ -190,25 +188,35 @@ public sealed class NoteIconCatalog
             return cached;
 
         NoteIcon? icon = null;
-        var path = Path.Combine(_folder, uid + ".png");
-        if (File.Exists(path))
+        try
         {
-            try
+            using var source = OpenSource(uid);
+            if (source is not null)
             {
-                using var source = new Bitmap(path);
                 var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
                 if (prepared is not null)
                     icon = new NoteIcon(prepared, ScaleFor(uid), DirectionOf(uid), BossMarkerOf(uid));
             }
-            catch (Exception)
-            {
-                // 깨진 그림 한 장이 에디터를 멈추게 하지 않는다. 그 노트는 단색으로 그려진다.
-                icon = null;
-            }
+        }
+        catch (Exception)
+        {
+            // 깨진 그림 한 장이 에디터를 멈추게 하지 않는다. 그 노트는 단색으로 그려진다.
+            icon = null;
         }
 
         _byUid[uid] = icon;
         return icon;
+    }
+
+    // 폴더에 있는 그림을 먼저 쓰고, 없으면 exe 안에 넣어 둔 그림(로컬 빌드, EmbedNoteIcons=true)을 쓴다.
+    private Bitmap? OpenSource(string uid)
+    {
+        var path = Path.Combine(_folder, uid + ".png");
+        if (File.Exists(path))
+            return new Bitmap(path);
+
+        using var stream = typeof(NoteIconCatalog).Assembly.GetManifestResourceStream($"note_icons/{uid}.png");
+        return stream is null ? null : new Bitmap(stream);
     }
 }
 
