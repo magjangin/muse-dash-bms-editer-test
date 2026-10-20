@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using Avalonia;
+using bms_editer.Services;
 
 namespace bms_editer;
 
@@ -14,6 +16,7 @@ internal class Program
     {
         try
         {
+            App.StartupFilePath = args.FirstOrDefault(IsChartFile);
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)
@@ -24,6 +27,10 @@ internal class Program
             throw;
         }
     }
+
+    // 탐색기 연결로 넘어온 인자 중 실제 차트 파일만 골라낸다.
+    private static bool IsChartFile(string path)
+        => File.Exists(path) && FileAssociation.Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()

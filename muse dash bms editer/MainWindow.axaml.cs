@@ -194,6 +194,55 @@ public partial class MainWindow : Window
                 await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
         }
 
+        // 탐색기 더블클릭 등 실행 인자로 받은 파일을 연다.
+        // 창이 막 뜬 직후라 저장 안 한 내용이 없으므로 확인창을 띄우지 않는다.
+        public async Task OpenExternalFileAsync(string path)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            if (!vm.LoadBms(path))
+            {
+                await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
+                return;
+            }
+
+            // 고른 차트가 들어 있는 폴더에서 OGG·영상을 찾는다.
+            var folderPath = Path.GetDirectoryName(path);
+            if (folderPath is not null)
+                await LoadFolderAudioAndVideoAsync(vm, folderPath);
+        }
+
+        private async void OnRegisterFileAssociationClick(object? sender, RoutedEventArgs e)
+        {
+            if (!OperatingSystem.IsWindows())
+                return;
+
+            var exePath = Environment.ProcessPath;
+            if (exePath is null || Path.GetFileName(exePath).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                await ConfirmWindow.ShowMessageAsync(
+                    this, "배포된 exe 로 실행했을 때만 연결을 등록할 수 있습니다.", "연결 등록 실패");
+                return;
+            }
+
+            try
+            {
+                FileAssociation.Register(exePath);
+            }
+            catch (Exception ex)
+            {
+                await ConfirmWindow.ShowMessageAsync(this, $"등록하지 못했습니다.\n\n{ex.Message}", "연결 등록 실패");
+                return;
+            }
+
+            await ConfirmWindow.ShowMessageAsync(
+                this,
+                "이제 .bms / .bme / .bml 파일을 더블클릭하면 이 에디터로 열립니다.\n\n" +
+                "다른 프로그램으로 열린다면 파일 속성의 '연결 프로그램'에서 이 에디터를 골라 주세요.",
+                "연결 등록 완료");
+        }
+
         // 건반형 BMS(4K/5K/7K)를 열어 뮤즈 대시 두 레인으로 접는다.
         //
         // 여는 것이 아니라 **가져오기**다. 지금 문서의 키음 표를 그대로 쓰기 때문이다.
@@ -324,6 +373,12 @@ public partial class MainWindow : Window
                 return;
             }
 
+            await LoadFolderAudioAndVideoAsync(vm, folderPath);
+        }
+
+        // 차트와 같은 폴더의 OGG·영상을 붙인다. 폴더 열기와 탐색기 더블클릭이 같이 쓴다.
+        private async Task LoadFolderAudioAndVideoAsync(MainWindowViewModel vm, string folderPath)
+        {
             var oggPath = FolderMedia.FindBestFile(folderPath, FolderMedia.AudioExtensions);
             if (oggPath is not null && !await vm.LoadOggAsync(oggPath))
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");

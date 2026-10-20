@@ -34,6 +34,12 @@
     <None Include="note_icons\**\*.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" LinkBase="note_icons" />
   </ItemGroup>
 
+  <!-- 로컬 전용: dotnet publish -p:EmbedNoteIcons=true 로 그림을 exe 안에 넣는다.
+       게임에서 뽑은 그림이라 기본값(false)에서는 넣지 않는다. 이 옵션으로 만든 exe 는 배포하지 않는다. -->
+  <ItemGroup Condition="'$(EmbedNoteIcons)' == 'true' And Exists('note_icons')">
+    <EmbeddedResource Include="note_icons\*.png" LogicalName="note_icons/%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
