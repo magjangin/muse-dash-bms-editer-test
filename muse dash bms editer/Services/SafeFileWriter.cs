@@ -38,6 +38,9 @@ public static class SafeFileWriter
             TryDelete(tempPath);
             throw;
         }
+
+        // 저장이 끝난 뒤에만 알린다. 탐색기가 옛 목록을 들고 있지 않도록.
+        ShellNotify.FileChanged(fullPath);
     }
 
     private static void WriteTempFile(string tempPath, string content, Encoding encoding)
