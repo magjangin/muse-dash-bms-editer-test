@@ -99,7 +99,7 @@
         <!-- 검색: 키음이 수백 개가 되면 판만 훑어서는 못 찾는다 -->
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="0,0,0,8">
             <TextBox Grid.Column="0" Text="{Binding Filter}"
-                     PlaceholderText="번호 또는 파일명으로 검색" />
+                     PlaceholderText="번호·파일명·초성 검색 (띄어쓰기로 여러 낱말)" />
             <Button Grid.Column="1" Content="지우기" Command="{Binding ClearFilterCommand}" />
             <ComboBox Grid.Column="2" Width="136"
                       SelectedIndex="{Binding ViewModeIndex}"
@@ -156,7 +156,7 @@
                         <DataTemplate x:DataType="models:BmsWavItem">
                             <StackPanel Spacing="2">
                                 <TextBlock Classes="key" Text="{Binding Key, StringFormat='#{0}'}" />
-                                <TextBlock Classes="name" Text="{Binding FileName}"
+                                <TextBlock Classes="name" Text="{Binding ShortName}"
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding FileName}" />
                             </StackPanel>
@@ -178,7 +178,7 @@
                                 <TextBlock Grid.Column="0" Classes="key"
                                            Text="{Binding Key, StringFormat='#{0}'}" />
                                 <TextBlock Grid.Column="1" Classes="name"
-                                           Text="{Binding FileName}"
+                                           Text="{Binding ShortName}"
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding FileName}" />
                             </Grid>

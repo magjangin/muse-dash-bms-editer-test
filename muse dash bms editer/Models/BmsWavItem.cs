@@ -19,5 +19,7 @@ public sealed class BmsWavItem
     public bool IsPathGuessed { get; set; }
 
     public string FileName => Path.GetFileName(FilePath);
+    // 팔레트 표시용. 앞의 코드와 뒤의 _dt, 확장자를 뗀 이름.
+    public string ShortName => WavSearch.CleanName(FileName);
     public string DisplayText => $"#{Key}: {FileName}";
 }
