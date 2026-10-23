@@ -130,11 +130,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
 
         Items = filter.Length == 0
             ? Owner.WavList.ToList()
-            : Owner.WavList
-                .Where(item =>
-                    item.Key.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    item.FileName.Contains(filter, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            : Owner.WavList.Where(item => WavSearch.Matches(item, filter)).ToList();
 
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(IsEmptyTable));
