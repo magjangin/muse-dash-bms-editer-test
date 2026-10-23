@@ -111,6 +111,22 @@
             </ComboBox>
         </Grid>
 
+        <!-- 분류: 파일명 규칙에서 뽑은 값. 값이 없는 분류는 숨긴다. -->
+        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8" IsVisible="{Binding HasAnyOptions}">
+            <ComboBox Width="120" Margin="0,0,6,0" ItemsSource="{Binding SceneOptions}"
+                      SelectedItem="{Binding SceneFilter}" IsVisible="{Binding HasSceneOptions}"
+                      ToolTip.Tip="씬으로 거릅니다" />
+            <ComboBox Width="140" Margin="0,0,6,0" ItemsSource="{Binding KindOptions}"
+                      SelectedItem="{Binding KindFilter}" IsVisible="{Binding HasKindOptions}"
+                      ToolTip.Tip="이름의 첫 단어(하트, 홀드, 보스 ...)로 거릅니다" />
+            <ComboBox Width="100" Margin="0,0,6,0" ItemsSource="{Binding PositionOptions}"
+                      SelectedItem="{Binding PositionFilter}" IsVisible="{Binding HasPositionOptions}"
+                      ToolTip.Tip="지상/공중으로 거릅니다" />
+            <ComboBox Width="110" ItemsSource="{Binding SpeedOptions}"
+                      SelectedItem="{Binding SpeedFilter}" IsVisible="{Binding HasSpeedOptions}"
+                      ToolTip.Tip="스피드로 거릅니다" />
+        </WrapPanel>
+
         <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,8,0,0">
             <TextBlock Text="{Binding StatusText}" Opacity="0.75" TextWrapping="Wrap" />
             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
