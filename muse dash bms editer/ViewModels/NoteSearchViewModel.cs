@@ -30,6 +30,12 @@ public sealed record SceneChoice(int Number)
     public override string ToString() => $"{Number}번 씬";
 }
 
+// 속도 바꾸기에서 고르는 속도 한 칸.
+public sealed record SpeedChoice(int Number)
+{
+    public override string ToString() => $"속도 {Number}";
+}
+
 // 조건에 맞는 노트를 한 번에 찾아 선택/삭제하거나 키음 번호를 바꾸는 창의 상태 모델.
 //
 // 대상 노트 필터는 세 그룹(선택 상태 / 노트 종류 / 표시 여부)으로 나뉘며,
@@ -69,6 +75,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         }
         SceneChoices = scenes.Select(n => new SceneChoice(n)).ToArray();
         _targetScene = SceneChoices[0];
+        _targetSpeed = SpeedChoices[0];
     }
 
     public ObservableCollection<LaneFilterItem> Lanes { get; } = new();
@@ -115,6 +122,11 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     [ObservableProperty] private SceneChoice? _targetScene;
     [ObservableProperty] private bool _addSceneStartToggle = true;
     [ObservableProperty] private bool _addSceneReturnToggle = true;
+
+    // 노트 속도 바꾸기
+    public IReadOnlyList<SpeedChoice> SpeedChoices { get; } = NoteSpeed.Choices.Select(n => new SpeedChoice(n)).ToArray();
+
+    [ObservableProperty] private SpeedChoice? _targetSpeed;
 
     [ObservableProperty] private string _statusMessage = "조건을 정한 뒤 아래 작업 버튼을 누르세요.";
 
@@ -275,6 +287,57 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         var result = _owner.ConvertSectionToScene(
             FindMatches(), MeasureFrom, MeasureTo, scene.Number, AddSceneStartToggle, AddSceneReturnToggle);
         StatusMessage = DescribeSceneConvert(result, scene);
+    }
+
+    // 조건에 맞는 노트를 고른 속도의 같은 노트(UID 끝 두 자리만 다른 키음)로 바꾼다.
+    [RelayCommand]
+    private void ConvertSpeed()
+    {
+        if (TargetSpeed is not { } speed)
+        {
+            StatusMessage = "바꿀 속도를 고르세요.";
+            return;
+        }
+
+        var matches = FindMatches();
+        if (matches.Count == 0)
+        {
+            StatusMessage = "조건에 맞는 노트가 없습니다.";
+            return;
+        }
+
+        StatusMessage = DescribeSpeedConvert(_owner.ConvertNotesToSpeed(matches, speed.Number), speed);
+    }
+
+    private static string DescribeSpeedConvert(SpeedConvertResult result, SpeedChoice speed)
+    {
+        var lines = new List<string>();
+
+        var head = result.Converted > 0
+            ? $"노트 {result.Converted}개를 {speed}(으)로 바꿨습니다."
+            : $"{speed}(으)로 바꾼 노트가 없습니다.";
+        if (result.AlreadyTarget > 0)
+            head += $" (이미 {speed} {result.AlreadyTarget}개)";
+        if (result.NoSpeed > 0)
+            head += $" (속도가 없는 노트 {result.NoSpeed}개는 그대로)";
+        lines.Add(head);
+
+        if (result.CreatedWavs > 0)
+        {
+            var missing = result.MissingFiles > 0
+                ? $" 그중 {result.MissingFiles}개는 파일이 없어 미리듣기에서 소리가 안 납니다(게임은 파일명만 읽습니다)."
+                : "";
+            lines.Add($"키음 표에 없던 #WAV {result.CreatedWavs}개를 새로 적었습니다.{missing}");
+        }
+
+        if (result.UnresolvedNotes > 0)
+        {
+            var names = string.Join(", ", result.UnresolvedNames.Take(3));
+            var more = result.UnresolvedNames.Count > 3 ? $" 외 {result.UnresolvedNames.Count - 3}종" : "";
+            lines.Add($"⚠ 키음을 만들지 못해 그대로 둔 노트 {result.UnresolvedNotes}개: {names}{more}");
+        }
+
+        return string.Join("\n", lines);
     }
 
     private static string DescribeSceneConvert(SceneConvertResult result, SceneChoice scene)

@@ -36,6 +36,11 @@
                 <MenuItem Header="선택 삭제" Command="{Binding DeleteSelectedNotesCommand}" InputGesture="Delete" />
                 <Separator />
                 <MenuItem Header="건반 BMS 가져오기 (다운믹스)..." Click="OnImportKeyboardChartClick" />
+                <MenuItem Header="가져올 노트 속도">
+                    <MenuItem Header="속도 1" ToggleType="Radio" GroupName="KeyboardSpeed" IsChecked="True" Tag="1" Click="OnKeyboardSpeedClick" />
+                    <MenuItem Header="속도 2" ToggleType="Radio" GroupName="KeyboardSpeed" Tag="2" Click="OnKeyboardSpeedClick" />
+                    <MenuItem Header="속도 3" ToggleType="Radio" GroupName="KeyboardSpeed" Tag="3" Click="OnKeyboardSpeedClick" />
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="검색/삭제/교체..." Click="OnShowNoteSearchClick" />
                 <MenuItem Header="키음 팔레트..." Click="OnShowWavPaletteClick" />

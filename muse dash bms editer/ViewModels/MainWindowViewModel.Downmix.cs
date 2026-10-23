@@ -58,6 +58,9 @@ public sealed partial class MainWindowViewModel
         return WavList.Count;
     }
 
+    // 가져온 노트에 쓸 속도(1~3). 파일 메뉴에서 고른다.
+    public int KeyboardImportSpeed { get; set; } = 1;
+
     // 실패하면 null 을 돌려주고 LastErrorMessage 에 사유를 담는다.
     public async Task<DownmixReport?> ImportKeyboardChartAsync(string filePath)
     {
@@ -89,7 +92,7 @@ public sealed partial class MainWindowViewModel
         // 원본 WAV는 BGM에서도 참조할 수 있으므로 보존하고, 뮤즈 대시 노트 정의는 빈 번호에 새로 적는다.
         var targetWavs = new Dictionary<string, string>(parsedSource.Chart.WavTable);
         var keys = MuseDashKeyResolver.CreateDefinitions(
-            targetWavs, WavKey.WidthOf(parsedSource.Chart), out var keyFailure);
+            targetWavs, WavKey.WidthOf(parsedSource.Chart), out var keyFailure, KeyboardImportSpeed);
 
         if (keys is null)
         {
@@ -230,7 +233,7 @@ public sealed partial class MainWindowViewModel
         {
             $"건반 노트 {report.SourceNotes}개 → 뮤즈 대시 노트 {report.CreatedNotes}개",
             $"지상 {report.GroundNotes}개 · 공중 {report.AirNotes}개 · 홀드 {report.CreatedHolds}쌍",
-            $"씬 {report.Scene} 노트 정의를 자동으로 만들었습니다. 효과음 WAV 파일은 별도이고, "
+            $"씬 {report.Scene} 노트 정의(속도 {KeyboardImportSpeed})를 자동으로 만들었습니다. 효과음 WAV 파일은 별도이고, "
                 + "미리듣기에는 그 씬의 WAV 폴더가 필요합니다.",
             DescribeCompanionMedia(report),
             "",

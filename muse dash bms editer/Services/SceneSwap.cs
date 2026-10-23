@@ -175,6 +175,49 @@ public sealed class SceneWavResolver
         return created is null ? (SceneKeyOutcome.Unresolved, null) : (SceneKeyOutcome.Converted, created);
     }
 
+    // 같은 키음의 속도(1~3)만 바꾼 키음 번호. 속도 자리가 없는 키음은 NotSceneBound 로 돌려준다.
+    //
+    // 표에 속도 변형이 없으면 UID 끝 두 자리만 바꾼 #WAV 정의를 새로 적는다(Created).
+    // 이름표가 같은 것만 같은 키음으로 본다. 홀드 시작·끝처럼 UID 가 같고 이름으로만 갈리는 키음이 있어서
+    // 하나뿐이라고 골랐다가는 시작이 끝으로 바뀐다.
+    public SceneKeyOutcome ResolveSpeed(string sourceKey, int speed, out string? key)
+    {
+        var cacheKey = (sourceKey, "speed" + speed);
+        if (!_cache.TryGetValue(cacheKey, out var cached))
+        {
+            cached = ResolveSpeedUncached(sourceKey, speed);
+            _cache[cacheKey] = cached;
+        }
+
+        key = cached.Item2;
+        return cached.Item1;
+    }
+
+    private (SceneKeyOutcome, string?) ResolveSpeedUncached(string sourceKey, int speed)
+    {
+        if (!_byKey.TryGetValue(sourceKey, out var source))
+            return (SceneKeyOutcome.Unresolved, null);
+
+        var text = TextOf(source);
+        if (SceneUid.Of(text) is not { } uid || NoteSpeed.Of(uid) is not { } current)
+            return (SceneKeyOutcome.NotSceneBound, null);
+
+        if (current == speed)
+            return (SceneKeyOutcome.AlreadyTarget, sourceKey);
+
+        var targetUid = NoteSpeed.WithSpeed(uid, speed);
+        var label = Label(text);
+
+        var match = _wavs.FirstOrDefault(w => SceneUid.Of(TextOf(w)) == targetUid && Label(TextOf(w)) == label);
+        if (match is not null)
+            return (SceneKeyOutcome.Converted, match.Key);
+
+        // 씬 번호는 그대로 둔다(from == to 라 "N번 씬" 도 그대로).
+        var scene = uid[..2];
+        var created = CreateFrom(source, targetUid, scene, scene, rewriteFolder: false);
+        return created is null ? (SceneKeyOutcome.Unresolved, null) : (SceneKeyOutcome.Converted, created);
+    }
+
     // targetScene 으로 바꾸는 씬 전환 노트의 키음 번호. 못 만들면 null 과 사유.
     public string? ResolveToggle(string targetScene, out string failure)
     {
