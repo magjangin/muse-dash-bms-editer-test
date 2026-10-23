@@ -30,6 +30,21 @@ public sealed class NoteIconTests
         Assert.Equal(expected, NoteIconCatalog.UidOf(text));
 
     [Theory]
+    [InlineData("031102", "031101")]
+    [InlineData("031103", "031101")]
+    [InlineData("031105", "031104")]
+    [InlineData("031108", "031107")]
+    [InlineData("031112", "031110")]
+    [InlineData("031115", "031113")]
+    [InlineData("031118", "031116")]
+    [InlineData("031101", "031101")]
+    [InlineData("000412", "000412")]   // 씬 전환의 yy 는 씬 번호
+    [InlineData("010102", "010102")]   // 보스 연출의 yy 는 동작 번호
+    [InlineData("031119", "031119")]
+    public void 속도_2와_3_노트는_속도_1_번호로_본다(string uid, string expected) =>
+        Assert.Equal(expected, NoteIconCatalog.SpeedOneOf(uid));
+
+    [Theory]
     [InlineData("031107", NoteDirection.Up)]
     [InlineData("021210", NoteDirection.Up)]
     [InlineData("031113", NoteDirection.Down)]
