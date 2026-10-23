@@ -101,8 +101,13 @@ public static class MuseDashKeyResolver
     // 건반 BMS 에는 뮤즈 대시 키음이 있을 리 없다. 그래서 가져오기는 남의 차트에서 표를 빌리는 대신
     // 빈 번호에 정의를 직접 적는다. 파일 자체는 만들지 않는다 — 소리는 그 씬의 WAV 폴더에서 온다.
     public static DownmixKeys? CreateDefinitions(
-        IDictionary<string, string> wavTable, int keyWidth, out string failureReason)
+        IDictionary<string, string> wavTable, int keyWidth, out string failureReason, int speed = 1)
     {
+        // 속도는 UID 끝 두 자리에 든다. 지상 01~03, 공중 04~06 (Services/NoteSpeed).
+        speed = Math.Clamp(speed, 1, 3);
+        var ground = speed.ToString("00");
+        var air = (speed + 3).ToString("00");
+
         var added = new List<string>();
 
         string? Add(string name)
@@ -122,12 +127,12 @@ public static class MuseDashKeyResolver
 
         var keys = new[]
         {
-            Add("011001_일반 노트1 지상 노멀"),
-            Add("011004_일반 노트1 공중 노멀"),
-            Add("010201_홀드 지상 시작 노트"),
-            Add("010201_홀드 지상 끝 노트"),
-            Add("010204_홀드 공중 시작 노트"),
-            Add("010204_홀드 공중 끝 노트"),
+            Add("0110" + ground + "_일반 노트1 지상 노멀"),
+            Add("0110" + air + "_일반 노트1 공중 노멀"),
+            Add("0102" + ground + "_홀드 지상 시작 노트"),
+            Add("0102" + ground + "_홀드 지상 끝 노트"),
+            Add("0102" + air + "_홀드 공중 시작 노트"),
+            Add("0102" + air + "_홀드 공중 끝 노트"),
         };
 
         if (keys.Any(k => k is null))

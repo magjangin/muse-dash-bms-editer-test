@@ -243,6 +243,16 @@ public partial class MainWindow : Window
                 "연결 등록 완료");
         }
 
+        private void OnKeyboardSpeedClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm
+                && sender is MenuItem { Tag: string tag }
+                && int.TryParse(tag, out var speed))
+            {
+                vm.KeyboardImportSpeed = speed;
+            }
+        }
+
         // 건반형 BMS(4K/5K/7K)를 열어 뮤즈 대시 두 레인으로 접는다.
         //
         // 여는 것이 아니라 **가져오기**다. 지금 문서의 키음 표를 그대로 쓰기 때문이다.

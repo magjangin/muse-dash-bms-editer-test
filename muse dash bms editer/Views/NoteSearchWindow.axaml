@@ -128,7 +128,7 @@
         <StackPanel Spacing="4">
             <TextBlock Text="작업" FontWeight="Bold" />
             <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="10">
-                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
                       ColumnSpacing="4" RowSpacing="4">
                     <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <Button Grid.Column="0" Content="번호 바꾸기 :"
@@ -168,6 +168,17 @@
                                   IsChecked="{Binding AddSceneReturnToggle}"
                                   ToolTip.Tip="마디 범위 다음 마디의 첫 박에, 구간 뒤 첫 노트의 씬으로 돌아가는 씬 전환 노트를 둡니다. 그 사이에 씬 전환이 이미 있으면 넣지 않습니다." />
                     </StackPanel>
+
+                    <Grid Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="4"
+                          ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="속도 바꾸기 :"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{Binding ConvertSpeedCommand}"
+                                ToolTip.Tip="조건에 맞는 노트를 오른쪽 속도의 같은 노트(UID 끝 두 자리만 다른 키음)로 바꿉니다. 씬 전환·보스 연출은 속도가 없어 그대로 둡니다. 열·마디·번호 범위·선택 조건도 그대로 적용됩니다." />
+                        <ComboBox Grid.Column="1" Width="124"
+                                  ItemsSource="{Binding SpeedChoices}"
+                                  SelectedItem="{Binding TargetSpeed}" />
+                    </Grid>
 
                     <Button Grid.Row="0" Grid.Column="2" Classes="action" Content="선택"
                             Command="{Binding SelectMatchesCommand}" />

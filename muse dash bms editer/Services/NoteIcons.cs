@@ -105,16 +105,7 @@ public sealed class NoteIconCatalog
     // 해머(종류 15). 줄이 비스듬하거나 가로로 길게 달려서 줄까지 두면 머리가 작아진다.
     // 속도 2·3 노트(yy 02·03, 05·06 ... 17·18)는 속도 1 노트와 모양이 같다. 속도 1 번호로 돌려준다.
     // 씬 전환(0004yy)과 보스 연출(xx=01)은 yy 가 속도가 아니라서 그대로 둔다.
-    public static string SpeedOneOf(string uid)
-    {
-        if (uid.Length != 6 || uid.StartsWith("0004", StringComparison.Ordinal) || IsBossAction(uid))
-            return uid;
-
-        if (!int.TryParse(uid.AsSpan(4, 2), out var yy) || yy < 1 || yy > 18)
-            return uid;
-
-        return string.Concat(uid.AsSpan(0, 4), (((yy - 1) / 3 * 3) + 1).ToString("00"));
-    }
+    public static string SpeedOneOf(string uid) => NoteSpeed.WithSpeed(uid, 1);
 
     private static bool IsHammer(string uid) => uid.Length == 6 && uid.AsSpan(2, 2).SequenceEqual("15");
 
