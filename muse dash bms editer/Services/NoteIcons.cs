@@ -10,6 +10,7 @@ using Avalonia.Platform;
 namespace bms_editer.Services;
 
 // 몬스터가 등장하는 방향. UID 끝 두 자리(yy)로 알 수 있다: 07·10 위에서, 13·16 아래에서.
+// 속도 2·3 은 같은 모션의 다음 두 번호(08·09, 11·12, 14·15, 17·18)라 속도 1 번호로 바꿔서 본다.
 public enum NoteDirection
 {
     None,
@@ -102,6 +103,19 @@ public sealed class NoteIconCatalog
     }
 
     // 해머(종류 15). 줄이 비스듬하거나 가로로 길게 달려서 줄까지 두면 머리가 작아진다.
+    // 속도 2·3 노트(yy 02·03, 05·06 ... 17·18)는 속도 1 노트와 모양이 같다. 속도 1 번호로 돌려준다.
+    // 씬 전환(0004yy)과 보스 연출(xx=01)은 yy 가 속도가 아니라서 그대로 둔다.
+    public static string SpeedOneOf(string uid)
+    {
+        if (uid.Length != 6 || uid.StartsWith("0004", StringComparison.Ordinal) || IsBossAction(uid))
+            return uid;
+
+        if (!int.TryParse(uid.AsSpan(4, 2), out var yy) || yy < 1 || yy > 18)
+            return uid;
+
+        return string.Concat(uid.AsSpan(0, 4), (((yy - 1) / 3 * 3) + 1).ToString("00"));
+    }
+
     private static bool IsHammer(string uid) => uid.Length == 6 && uid.AsSpan(2, 2).SequenceEqual("15");
 
     // 씬 번호가 00 이 아니고 종류가 01 이면 보스 연출 노트다. 끝 두 자리 07·08·09·10 은 방향이 아니라 액션 번호다.
@@ -188,14 +202,16 @@ public sealed class NoteIconCatalog
             return cached;
 
         NoteIcon? icon = null;
+        var baseUid = SpeedOneOf(uid);
         try
         {
-            using var source = OpenSource(uid);
+            // 속도별 그림 파일이 따로 있으면 그것을, 없으면 속도 1 그림을 쓴다.
+            using var source = OpenSource(uid) ?? (baseUid == uid ? null : OpenSource(baseUid));
             if (source is not null)
             {
                 var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
                 if (prepared is not null)
-                    icon = new NoteIcon(prepared, ScaleFor(uid), DirectionOf(uid), BossMarkerOf(uid));
+                    icon = new NoteIcon(prepared, ScaleFor(baseUid), DirectionOf(baseUid), BossMarkerOf(uid));
             }
         }
         catch (Exception)
