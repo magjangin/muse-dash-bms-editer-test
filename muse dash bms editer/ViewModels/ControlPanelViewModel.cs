@@ -51,11 +51,69 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
     [ObservableProperty] private string _replacementWavKey = string.Empty;
 
+    // 키음 목록 검색어. WavStats 는 노트에 쓰인 키음 전부이고, 화면에는 검색어와
+    // 분류 드롭다운으로 거른 VisibleWavStats 를 보여 준다.
+    [ObservableProperty] private string _wavFilter = string.Empty;
+    [ObservableProperty] private IReadOnlyList<WavNoteStat> _visibleWavStats = Array.Empty<WavNoteStat>();
+
     [ObservableProperty] private string _statusMessage = "레인이나 키음 줄을 고른 뒤 아래 버튼을 누르세요.";
 
+    // 부모 생성자가 Refresh 를 먼저 돌리므로, 그 첫 집계 때는 아직 null 이다.
     public ControlPanelViewModel(MainWindowViewModel owner) : base(owner)
     {
+        Filters = new WavTraitFilter(() => ApplyWavFilter(SelectedWavStat?.Key));
+        Filters.Rebuild(WavStats.Select(stat => stat.FileName));
+        ApplyWavFilter(null);
+
         ReplacementWavKey = WavKey.Format(1, Owner.WavKeyWidth);
+    }
+
+    // 씬·종류·위치·스피드 드롭다운. 노트에 실제로 쓰인 키음에서 값을 뽑는다.
+    public WavTraitFilter Filters { get; } = null!;
+
+    public bool HasVisibleWavStats => VisibleWavStats.Count > 0;
+
+    // 키음은 있는데 검색어나 분류에 걸린 것이 없을 때.
+    public bool ShowNoWavMatch => HasWavStats && !HasVisibleWavStats;
+
+    partial void OnWavFilterChanged(string value) => ApplyWavFilter(SelectedWavStat?.Key);
+
+    [RelayCommand]
+    private void ClearWavFilter()
+    {
+        Filters.Reset();
+
+        if (WavFilter.Length == 0)
+            ApplyWavFilter(SelectedWavStat?.Key);
+        else
+            WavFilter = string.Empty; // OnWavFilterChanged 가 다시 거른다.
+    }
+
+    // 검색어와 분류로 키음 목록을 다시 거른다. 목록이 갈리면 ListBox 가 선택을 null 로
+    // 밀어 넣으므로, 그 사이에는 선택 변화를 무시하고 같은 줄이 아직 보이면 되찾아 넣는다.
+    private void ApplyWavFilter(string? keepKey)
+    {
+        var wasRefreshing = _isRefreshing;
+        _isRefreshing = true;
+
+        var query = WavFilter.Trim();
+        VisibleWavStats = WavStats
+            .Where(stat => (Filters?.Passes(stat.FileName) ?? true) &&
+                           (query.Length == 0 || WavSearch.Matches(stat.Key, stat.FileName, query)))
+            .ToList();
+
+        SelectedWavStat = keepKey is null
+            ? null
+            : VisibleWavStats.FirstOrDefault(stat =>
+                string.Equals(stat.Key, keepKey, StringComparison.OrdinalIgnoreCase));
+
+        _isRefreshing = wasRefreshing;
+    }
+
+    partial void OnVisibleWavStatsChanged(IReadOnlyList<WavNoteStat> value)
+    {
+        OnPropertyChanged(nameof(HasVisibleWavStats));
+        OnPropertyChanged(nameof(ShowNoWavMatch));
     }
 
     // 고른 키음을 바로 들려준다. 다시 집계하느라 목록이 갈리면서 같은 줄을
@@ -208,7 +266,7 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
     }
 
     private void SelectWavStatByKey(string key) =>
-        SelectedWavStat = WavStats.FirstOrDefault(
+        SelectedWavStat = VisibleWavStats.FirstOrDefault(
             stat => string.Equals(stat.Key, key, StringComparison.OrdinalIgnoreCase));
 
     // 목록이 통째로 갈리기 직전에 고르고 있던 줄을 번호로 적어 둔다.
@@ -227,10 +285,9 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
             : Stats.FirstOrDefault(stat =>
                 string.Equals(stat.LaneId, _selectedLaneId, StringComparison.OrdinalIgnoreCase));
 
-        SelectedWavStat = _selectedWavKey is null
-            ? null
-            : WavStats.FirstOrDefault(stat =>
-                string.Equals(stat.Key, _selectedWavKey, StringComparison.OrdinalIgnoreCase));
+        // 쓰인 키음이 바뀌었으니 분류 드롭다운 값도 다시 뽑는다(첫 집계 때는 아직 없다).
+        Filters?.Rebuild(WavStats.Select(stat => stat.FileName));
+        ApplyWavFilter(_selectedWavKey);
 
         _isRefreshing = false;
     }
