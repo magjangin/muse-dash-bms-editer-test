@@ -41,6 +41,13 @@
             <Setter Property="Foreground" Value="White" />
         </Style>
 
+        <!-- 레인은 몇 개 안 되므로 가로로 늘어놓아 키음 목록에 자리를 넘긴다. -->
+        <Style Selector="ListBox.lanes ListBoxItem">
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+
         <Style Selector="ListBox">
             <Setter Property="BorderBrush" Value="Gray" />
             <Setter Property="BorderThickness" Value="1" />
@@ -61,20 +68,28 @@
 
         <ListBox Grid.Row="1"
                  x:Name="LaneStatList"
+                 Classes="lanes"
                  ItemsSource="{Binding Stats}"
                  SelectedItem="{Binding SelectedLaneStat}"
                  IsVisible="{Binding HasLaneStats}"
                  SelectionMode="Single"
-                 MaxHeight="164"
                  Margin="0,4,0,0"
+                 Padding="4,4,0,0"
                  DoubleTapped="OnLaneRowDoubleTapped"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.VerticalScrollBarVisibility="Disabled">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:LaneNoteStat">
-                    <Grid ColumnDefinitions="Auto,*" ToolTip.Tip="두 번 누르면 이 레인의 노트를 모두 선택합니다">
-                        <TextBlock Grid.Column="0" Text="{Binding Header}" Width="60" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" />
-                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                ToolTip.Tip="두 번 누르면 이 레인의 노트를 모두 선택합니다">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Count}" Opacity="0.85" />
+                    </StackPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
@@ -96,13 +111,36 @@
             </Grid>
             <TextBlock Text="실제로 노트에 쓰인 번호만 표시합니다." Opacity="0.6" TextWrapping="Wrap" />
             <TextBlock Text="쓰인 키음이 없습니다." Opacity="0.6" IsVisible="{Binding !HasWavStats}" />
+
+            <!-- 검색과 분류. 키음 팔레트와 같은 규칙이다. -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4" IsVisible="{Binding HasWavStats}">
+                <TextBox Grid.Column="0" Text="{Binding WavFilter}"
+                         PlaceholderText="번호·파일명·초성 검색" />
+                <Button Grid.Column="1" Content="지우기" Command="{Binding ClearWavFilterCommand}" />
+            </Grid>
+            <WrapPanel IsVisible="{Binding Filters.HasAnyOptions}">
+                <ComboBox Width="86" Margin="0,0,4,0" ItemsSource="{Binding Filters.SceneOptions}"
+                          SelectedItem="{Binding Filters.SceneFilter}" IsVisible="{Binding Filters.HasSceneOptions}"
+                          ToolTip.Tip="씬으로 거릅니다" />
+                <ComboBox Width="104" Margin="0,0,4,0" ItemsSource="{Binding Filters.KindOptions}"
+                          SelectedItem="{Binding Filters.KindFilter}" IsVisible="{Binding Filters.HasKindOptions}"
+                          ToolTip.Tip="이름의 첫 단어(하트, 홀드, 보스 ...)로 거릅니다" />
+                <ComboBox Width="76" Margin="0,0,4,0" ItemsSource="{Binding Filters.PositionOptions}"
+                          SelectedItem="{Binding Filters.PositionFilter}" IsVisible="{Binding Filters.HasPositionOptions}"
+                          ToolTip.Tip="지상/공중으로 거릅니다" />
+                <ComboBox Width="90" ItemsSource="{Binding Filters.SpeedOptions}"
+                          SelectedItem="{Binding Filters.SpeedFilter}" IsVisible="{Binding Filters.HasSpeedOptions}"
+                          ToolTip.Tip="스피드로 거릅니다" />
+            </WrapPanel>
+            <TextBlock Text="검색어나 분류에 맞는 키음이 없습니다." Opacity="0.6"
+                       IsVisible="{Binding ShowNoWavMatch}" />
         </StackPanel>
 
         <ListBox Grid.Row="4"
                  x:Name="WavStatList"
-                 ItemsSource="{Binding WavStats}"
+                 ItemsSource="{Binding VisibleWavStats}"
                  SelectedItem="{Binding SelectedWavStat}"
-                 IsVisible="{Binding HasWavStats}"
+                 IsVisible="{Binding HasVisibleWavStats}"
                  SelectionMode="Single"
                  DoubleTapped="OnWavRowDoubleTapped"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -111,7 +149,7 @@
                     <Grid ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding FileName}">
                         <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}"
                                    Width="46" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1" Text="{Binding FileName}"
+                        <TextBlock Grid.Column="1" Text="{Binding ShortName}"
                                    TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
                         <TextBlock Grid.Column="2" Text="{Binding Count}"
                                    HorizontalAlignment="Right" MinWidth="30" />

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using bms_editer.Models;
+using bms_editer.Services.Downmix;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace bms_editer.ViewModels;
@@ -11,9 +12,22 @@ namespace bms_editer.ViewModels;
 //
 // 예전에는 LaneId 자리에 Header 를 넣어 두 값이 어긋나 있었다. 지금은 둘이 같아서
 // 드러나지 않았지만, 이 목록으로 노트를 골라내려면(컨트롤 패널) 채널 번호가 진짜여야 한다.
-public sealed record LaneNoteStat(string LaneId, string Header, int Count);
+public sealed record LaneNoteStat(string LaneId, string Header, int Count)
+{
+    // 뮤즈 대시에서 13 은 지상, 14 는 공중이다. 컨트롤 패널이 숫자만으로는 알기 어려워 붙인다.
+    public string Label => LaneId switch
+    {
+        DownmixEngine.GroundLane => $"{Header} 지상",
+        DownmixEngine.AirLane => $"{Header} 공중",
+        _ => Header,
+    };
+}
 
-public sealed record WavNoteStat(string Key, string FileName, int Count);
+public sealed record WavNoteStat(string Key, string FileName, int Count)
+{
+    // 앞의 코드·_dt·확장자를 뗀 이름(씬이 없으면 씬을 붙인다). 전체 이름은 FileName.
+    public string ShortName => WavSearch.DisplayName(FileName);
+}
 
 // 노트 통계 창(📊)의 상태 모델. **집계해서 보여주기만 한다.**
 //

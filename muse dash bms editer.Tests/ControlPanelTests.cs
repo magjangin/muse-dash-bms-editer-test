@@ -195,4 +195,79 @@ public sealed class ControlPanelTests
         Assert.True(panel.ReplaceWavNotesCommand.CanExecute(null));
         Assert.True(panel.DeleteWavNotesCommand.CanExecute(null));
     }
+
+    private static MainWindowViewModel WithNamedWavs()
+    {
+        var owner = WithNotes(("13", 0, "01"), ("13", 1, "02"), ("14", 0, "03"), ("14", 1, "03"));
+        owner.WavList.Add(new BmsWavItem { Key = "01", FilePath = "C:/wav/010201_홀드 지상 시작 노트 스피드1_dt1.47.wav" });
+        owner.WavList.Add(new BmsWavItem { Key = "02", FilePath = "C:/wav/041503_해머 지상 스피드3_dt1.08.wav" });
+        owner.WavList.Add(new BmsWavItem { Key = "03", FilePath = "C:/wav/000201_하트 공중 스피드1_dt1.48.wav" });
+        return owner;
+    }
+
+    [Fact]
+    public void 키음_줄은_정리한_이름을_보여주고_전체_이름도_들고_있다()
+    {
+        var panel = PanelFor(WithNamedWavs());
+
+        var stat = panel.WavStats.First(s => s.Key == "02");
+        Assert.Equal("4번 씬 · 해머 지상 스피드3", stat.ShortName);
+        Assert.Equal("041503_해머 지상 스피드3_dt1.08.wav", stat.FileName);
+    }
+
+    [Fact]
+    public void 검색어와_분류로_키음_목록을_거른다()
+    {
+        var panel = PanelFor(WithNamedWavs());
+        Assert.Equal(3, panel.VisibleWavStats.Count);
+
+        panel.WavFilter = "ㅎㅁ";
+        Assert.Equal("02", Assert.Single(panel.VisibleWavStats).Key);
+
+        panel.WavFilter = string.Empty;
+        panel.Filters.PositionFilter = "공중";
+        Assert.Equal("03", Assert.Single(panel.VisibleWavStats).Key);
+
+        panel.WavFilter = "해머";
+        Assert.Empty(panel.VisibleWavStats);
+        Assert.True(panel.ShowNoWavMatch);
+
+        panel.ClearWavFilterCommand.Execute(null);
+        Assert.Equal(3, panel.VisibleWavStats.Count);
+        Assert.False(panel.Filters.IsActive);
+    }
+
+    [Fact]
+    public void 걸러져_안_보이는_키음은_선택이_풀리고_보이면_유지된다()
+    {
+        var panel = PanelFor(WithNamedWavs());
+
+        panel.SelectedWavStat = panel.VisibleWavStats.First(s => s.Key == "02");
+        panel.WavFilter = "해머";
+        Assert.Equal("02", panel.SelectedWavStat?.Key);
+
+        panel.WavFilter = "하트";
+        Assert.Null(panel.SelectedWavStat);
+    }
+
+    [Fact]
+    public void 분류_드롭다운은_노트에_쓰인_키음에서만_값을_뽑는다()
+    {
+        var owner = WithNamedWavs();
+        owner.WavList.Add(new BmsWavItem { Key = "04", FilePath = "C:/wav/060101_라이더 지상_dt1.48.wav" });
+        var panel = PanelFor(owner);
+
+        Assert.DoesNotContain("라이더", panel.Filters.KindOptions);
+        Assert.Contains("해머", panel.Filters.KindOptions);
+    }
+
+    [Fact]
+    public void 지상_공중_레인에는_이름이_붙는다()
+    {
+        var panel = PanelFor(WithNotes(("13", 0, "01"), ("14", 0, "01"), ("11", 0, "01")));
+
+        Assert.Equal("지상", panel.Stats.First(s => s.LaneId == "13").Label.Split(' ')[1]);
+        Assert.Equal("공중", panel.Stats.First(s => s.LaneId == "14").Label.Split(' ')[1]);
+        Assert.Equal(panel.Stats.First(s => s.LaneId == "11").Header, panel.Stats.First(s => s.LaneId == "11").Label);
+    }
 }

@@ -21,62 +21,15 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
     // 팔레트에서 색을 고르면 바로 소리가 나야 붓을 고르는 느낌이 난다.
     [ObservableProperty] private bool _previewOnSelect = true;
 
-    // 분류 드롭다운의 "걸러내지 않음" 칸.
-    public const string All = "전체";
-
-    private string _sceneFilter = All;
-    private string _kindFilter = All;
-    private string _positionFilter = All;
-    private string _speedFilter = All;
-
-    private IReadOnlyList<string> _sceneOptions = [All];
-    private IReadOnlyList<string> _kindOptions = [All];
-    private IReadOnlyList<string> _positionOptions = [All];
-    private IReadOnlyList<string> _speedOptions = [All];
-
     public WavPaletteViewModel(MainWindowViewModel owner) : base(owner)
     {
-        RebuildOptions();
+        Filters = new WavTraitFilter(Refresh);
+        Filters.Rebuild(Owner.WavList.Select(item => item.FileName));
         Refresh();
     }
 
-    // 분류 드롭다운. 지금 불러온 키음에서 실제로 있는 값만 나온다.
-    // ComboBox 는 목록이 바뀌면 null 을 밀어 넣으므로 null 은 무시한다.
-    public IReadOnlyList<string> SceneOptions => _sceneOptions;
-    public IReadOnlyList<string> KindOptions => _kindOptions;
-    public IReadOnlyList<string> PositionOptions => _positionOptions;
-    public IReadOnlyList<string> SpeedOptions => _speedOptions;
-
-    public string SceneFilter
-    {
-        get => _sceneFilter;
-        set { if (value is not null && SetProperty(ref _sceneFilter, value)) Refresh(); }
-    }
-
-    public string KindFilter
-    {
-        get => _kindFilter;
-        set { if (value is not null && SetProperty(ref _kindFilter, value)) Refresh(); }
-    }
-
-    public string PositionFilter
-    {
-        get => _positionFilter;
-        set { if (value is not null && SetProperty(ref _positionFilter, value)) Refresh(); }
-    }
-
-    public string SpeedFilter
-    {
-        get => _speedFilter;
-        set { if (value is not null && SetProperty(ref _speedFilter, value)) Refresh(); }
-    }
-
-    // 값이 하나도 없는 분류는 드롭다운을 숨긴다.
-    public bool HasSceneOptions => _sceneOptions.Count > 1;
-    public bool HasKindOptions => _kindOptions.Count > 1;
-    public bool HasPositionOptions => _positionOptions.Count > 1;
-    public bool HasSpeedOptions => _speedOptions.Count > 1;
-    public bool HasAnyOptions => HasSceneOptions || HasKindOptions || HasPositionOptions || HasSpeedOptions;
+    // 씬·종류·위치·스피드 드롭다운. 검색어와 함께 적용된다.
+    public WavTraitFilter Filters { get; }
 
     public BmsWavItem? SelectedWavItem
     {
@@ -165,7 +118,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
 
     protected override void OnWavListChanged()
     {
-        RebuildOptions();
+        Filters.Rebuild(Owner.WavList.Select(item => item.FileName));
         Refresh();
     }
 
@@ -183,8 +136,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
     // 검색어와 분류를 모두 풀고 한 번만 다시 거른다.
     private void ResetFilters()
     {
-        _sceneFilter = _kindFilter = _positionFilter = _speedFilter = All;
-        RaiseFilterProperties();
+        Filters.Reset();
 
         if (Filter.Length == 0)
             Refresh();
@@ -192,61 +144,12 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
             Filter = string.Empty; // OnFilterChanged 가 Refresh 한다.
     }
 
-    private void RaiseFilterProperties()
-    {
-        OnPropertyChanged(nameof(SceneFilter));
-        OnPropertyChanged(nameof(KindFilter));
-        OnPropertyChanged(nameof(PositionFilter));
-        OnPropertyChanged(nameof(SpeedFilter));
-    }
-
-    private void RebuildOptions()
-    {
-        var traits = Owner.WavList.Select(item => WavSearch.Traits(item.FileName)).ToList();
-
-        _sceneOptions = [All, .. traits.Where(t => t.Scene.HasValue).Select(t => t.Scene!.Value)
-            .Distinct().Order().Select(WavSearch.SceneLabel)];
-        _kindOptions = [All, .. traits.Where(t => t.Kind is not null).Select(t => t.Kind!).Distinct()];
-        _positionOptions = [All, .. new[] { "지상", "공중" }.Where(p => traits.Any(t => t.Position == p))];
-        _speedOptions = [All, .. traits.Where(t => t.Speed.HasValue).Select(t => t.Speed!.Value)
-            .Distinct().Order().Select(speed => $"스피드{speed}")];
-
-        // 새 목록에 없는 값을 고르고 있었다면 풀어 준다.
-        if (!_sceneOptions.Contains(_sceneFilter)) _sceneFilter = All;
-        if (!_kindOptions.Contains(_kindFilter)) _kindFilter = All;
-        if (!_positionOptions.Contains(_positionFilter)) _positionFilter = All;
-        if (!_speedOptions.Contains(_speedFilter)) _speedFilter = All;
-
-        OnPropertyChanged(nameof(SceneOptions));
-        OnPropertyChanged(nameof(KindOptions));
-        OnPropertyChanged(nameof(PositionOptions));
-        OnPropertyChanged(nameof(SpeedOptions));
-        OnPropertyChanged(nameof(HasSceneOptions));
-        OnPropertyChanged(nameof(HasKindOptions));
-        OnPropertyChanged(nameof(HasPositionOptions));
-        OnPropertyChanged(nameof(HasSpeedOptions));
-        OnPropertyChanged(nameof(HasAnyOptions));
-        RaiseFilterProperties();
-    }
-
-    private bool PassesFilters(BmsWavItem item)
-    {
-        if (_sceneFilter == All && _kindFilter == All && _positionFilter == All && _speedFilter == All)
-            return true;
-
-        var traits = WavSearch.Traits(item.FileName);
-        return (_sceneFilter == All || (traits.Scene is { } scene && WavSearch.SceneLabel(scene) == _sceneFilter)) &&
-               (_kindFilter == All || traits.Kind == _kindFilter) &&
-               (_positionFilter == All || traits.Position == _positionFilter) &&
-               (_speedFilter == All || (traits.Speed is { } speed && $"스피드{speed}" == _speedFilter));
-    }
-
     private void Refresh()
     {
         var filter = Filter.Trim();
 
         Items = Owner.WavList
-            .Where(item => PassesFilters(item) && (filter.Length == 0 || WavSearch.Matches(item, filter)))
+            .Where(item => Filters.Passes(item.FileName) && (filter.Length == 0 || WavSearch.Matches(item, filter)))
             .ToList();
 
         OnPropertyChanged(nameof(TotalCount));
