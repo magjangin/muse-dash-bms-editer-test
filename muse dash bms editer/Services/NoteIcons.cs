@@ -53,7 +53,8 @@ public sealed class NoteIcon
 
 // UID(파일명 앞 6자리) 로 노트 그림을 찾는다.
 //
-// 그림은 exe 옆 note_icons 폴더에서 <UID>.png 로 찾는다. 게임에서 뽑은 그림이라 exe 에는 넣지 않는다.
+// 그림은 <UID>.png 로 찾는다. 사용자 폴더(NoteIconImporter.UserFolder, "노트 그림 가져오기"가 만든다)를 먼저,
+// 다음으로 exe 옆 note_icons 폴더를 본다. 게임에서 뽑은 그림이라 배포 exe 에는 넣지 않는다.
 // 폴더가 없거나 그림이 없는 노트는 호출하는 쪽이 단색 동그라미로 그린다.
 public sealed class NoteIconCatalog
 {
@@ -74,11 +75,13 @@ public sealed class NoteIconCatalog
     };
 
     private readonly string _folder;
+    private readonly string? _userFolder;
     private readonly Dictionary<string, NoteIcon?> _byUid = new(StringComparer.Ordinal);
 
-    public NoteIconCatalog(string folder)
+    public NoteIconCatalog(string folder, string? userFolder = null)
     {
         _folder = folder;
+        _userFolder = userFolder;
     }
 
     public static string DefaultFolder => Path.Combine(AppContext.BaseDirectory, "note_icons");
@@ -215,9 +218,16 @@ public sealed class NoteIconCatalog
         return icon;
     }
 
-    // 폴더에 있는 그림을 먼저 쓰고, 없으면 exe 안에 넣어 둔 그림(로컬 빌드, EmbedNoteIcons=true)을 쓴다.
+    // 사용자 폴더, exe 옆 폴더 순으로 쓰고, 없으면 exe 안에 넣어 둔 그림(로컬 빌드, EmbedNoteIcons=true)을 쓴다.
     private Bitmap? OpenSource(string uid)
     {
+        if (_userFolder is not null)
+        {
+            var userPath = Path.Combine(_userFolder, uid + ".png");
+            if (File.Exists(userPath))
+                return new Bitmap(userPath);
+        }
+
         var path = Path.Combine(_folder, uid + ".png");
         if (File.Exists(path))
             return new Bitmap(path);
