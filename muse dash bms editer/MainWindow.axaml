@@ -46,6 +46,7 @@
                 <MenuItem Header="키음 팔레트..." Click="OnShowWavPaletteClick" />
                 <MenuItem Header="노트 통계..." Click="OnShowStatsClick" />
                 <MenuItem Header="컨트롤 패널..." Click="OnShowControlPanelClick" />
+                <MenuItem Header="노트 그림 가져오기..." Click="OnImportNoteIconsClick" />
             </MenuItem>
             <MenuItem Header="재생 (P)">
                 <MenuItem Header="재생 / 정지" Command="{Binding TogglePlaybackCommand}" InputGesture="Space" />

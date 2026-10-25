@@ -17,9 +17,16 @@ public sealed partial class MainWindowViewModel
 
     // 노트 그림. 키음 표가 바뀔 때만 다시 만든다. 그림 폴더(note_icons)가 없으면 비어 있고,
     // 그때 격자는 예전처럼 단색으로 그린다.
-    private readonly NoteIconCatalog _noteIconCatalog = new(NoteIconCatalog.DefaultFolder);
+    private NoteIconCatalog _noteIconCatalog = new(NoteIconCatalog.DefaultFolder, NoteIconImporter.UserFolder);
     private IReadOnlyDictionary<string, NoteIcon> _noteIcons = new Dictionary<string, NoteIcon>();
     public IReadOnlyDictionary<string, NoteIcon> NoteIcons => _noteIcons;
+
+    // "노트 그림 가져오기" 뒤에 호출한다. 이미 읽어 둔 그림을 버리고 폴더에서 다시 읽는다.
+    public void ReloadNoteIcons()
+    {
+        _noteIconCatalog = new NoteIconCatalog(NoteIconCatalog.DefaultFolder, NoteIconImporter.UserFolder);
+        RefreshNoteIcons();
+    }
 
     private void RefreshNoteIcons()
     {

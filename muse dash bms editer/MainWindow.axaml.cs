@@ -578,6 +578,54 @@ public partial class MainWindow : Window
         private void OnShowStatsClick(object? sender, RoutedEventArgs e) =>
             ShowToolWindow(vm => new NoteStatsWindow(new NoteStatsViewModel(vm)));
 
+        // 렌더해 둔 노트 그림 폴더를 찾아 사용자 폴더(note_icons)로 가져온다.
+        // 마지막에 쓴 폴더나 흔한 자리에서 먼저 찾아 묻고, 아니라고 하면 직접 고르게 한다.
+        private async void OnImportNoteIconsClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var source = NoteIconImporter.FindSourceFolder();
+            if (source is null || !await ConfirmWindow.ShowAsync(this, $"이 폴더에서 노트 그림을 가져올까요?\n\n{source}", "노트 그림 가져오기"))
+            {
+                var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "렌더해 둔 노트 그림 폴더 선택 (장면01, 장면02 ... 이 들어 있는 폴더)",
+                    AllowMultiple = false,
+                });
+
+                source = folders.FirstOrDefault()?.TryGetLocalPath();
+                if (source is null)
+                    return;
+            }
+
+            if (!NoteIconImporter.LooksLikeSource(source))
+            {
+                await ConfirmWindow.ShowMessageAsync(this, $"노트 그림을 찾지 못했습니다.\n장면01 같은 폴더나 0105_road.png 같은 파일이 들어 있어야 합니다.\n\n{source}", "노트 그림 가져오기");
+                return;
+            }
+
+            NoteIconImportResult result;
+            try
+            {
+                var chosen = source;
+                result = await Task.Run(() => NoteIconImporter.Import(chosen, NoteIconImporter.UserFolder));
+            }
+            catch (Exception ex)
+            {
+                await ConfirmWindow.ShowMessageAsync(this, $"가져오지 못했습니다.\n\n{ex.Message}", "노트 그림 가져오기");
+                return;
+            }
+
+            vm.ReloadNoteIcons();
+
+            var message = $"그림 {result.Written}장을 가져왔습니다.\n저장 위치: {NoteIconImporter.UserFolder}";
+            if (result.Warnings.Count > 0)
+                message += "\n\n확인할 것:\n" + string.Join("\n", result.Warnings.Take(10));
+
+            await ConfirmWindow.ShowMessageAsync(this, message, "노트 그림 가져오기");
+        }
+
         // 같은 집계를 물려받아 레인/키음별 일괄 선택·미리듣기·일괄 교체까지 잇는 공구함.
         // 여기서 고른 노트를 격자에서 이어 손보므로 역시 모드리스로 띄운다.
         private void OnShowControlPanelClick(object? sender, RoutedEventArgs e) =>
