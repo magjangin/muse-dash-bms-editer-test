@@ -167,8 +167,7 @@ dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProf
   이후 추가한 다운믹스·짝 검사·되돌리기로 얼마나 줄었는지는 아직 다시 재 보지 않았습니다.
 - **노트 그림은 배포본에 들어 있지 않습니다.** 게임에서 뽑은 그림이라 저장소와 배포본에 넣지 않았고, 없으면 단색 동그라미로 보입니다.
   그림은 직접 만들어야 합니다: [Spine Support Tool](https://github.com/magjangin/spine-support-tool)로 게임 번들에서 노트·보스를 렌더한 뒤,
-  에디터의 **편집 → 노트 그림 가져오기...** 에서 그 렌더 폴더를 고르면 `%LOCALAPPDATA%\muse dash bms editer
-ote_icons` 에 자동으로 만들어집니다.
+  에디터의 **편집 → 노트 그림 가져오기...** 에서 그 렌더 폴더를 고르면 `%LOCALAPPDATA%\muse dash bms editer\note_icons` 에 자동으로 만들어집니다.
   (뮤즈 대시를 가지고 있어야 하고, 만든 그림은 개인 용도로만 쓰세요.)
 - **다운믹스 결과는 리듬 뼈대입니다.** 건반 BMS에는 뮤즈 대시 노트 종류 정보가 없어서, 종류는 사람이 얹어야 합니다.
   변환은 실제 차트 20곡으로 확인했지만, 그 결과로 한 곡을 끝까지 완성해 게임에서 플레이해 본 적은 아직 없습니다.
