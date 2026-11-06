@@ -134,6 +134,48 @@ public sealed class NoteSpeedTests : IDisposable
         Assert.Equal("12", end.WavKey);
     }
 
+    private MainWindowViewModel LoadWords(string wavLines)
+    {
+        var path = Path.Combine(_directory, "words.bms");
+        File.WriteAllText(path,
+            "#TITLE speed\r\n" +
+            "#BPM 120\r\n" +
+            wavLines +
+            "#00113:01\r\n",
+            new UTF8Encoding(false));
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path), vm.LastErrorMessage);
+        return vm;
+    }
+
+    [Fact]
+    public void 새로_적는_정의는_이름의_스피드_글자도_맞춘다()
+    {
+        var vm = LoadWords("#WAV01 1번 씬 wav폴더\\011001_해머 지상 스피드1_dt1.08.wav\r\n");
+        var note = vm.Chart.Notes.Single();
+
+        var result = vm.ConvertNotesToSpeed(new[] { note }, 3);
+
+        Assert.Equal(1, result.CreatedWavs);
+        Assert.EndsWith("011003_해머 지상 스피드3_dt1.08.wav", vm.Chart.WavTable[note.WavKey]);
+        Assert.Equal(3, WavSearch.Traits(Path.GetFileName(vm.Chart.WavTable[note.WavKey])).Speed);
+    }
+
+    [Fact]
+    public void 이름에_스피드_글자가_있어도_이미_있는_변형을_찾는다()
+    {
+        var vm = LoadWords(
+            "#WAV01 1번 씬 wav폴더\\011001_해머 지상 스피드1_dt1.08.wav\r\n" +
+            "#WAV02 1번 씬 wav폴더\\011003_해머 지상 스피드3_dt1.08.wav\r\n");
+        var note = vm.Chart.Notes.Single();
+
+        var result = vm.ConvertNotesToSpeed(new[] { note }, 3);
+
+        Assert.Equal(1, result.Converted);
+        Assert.Equal(0, result.CreatedWavs);
+        Assert.Equal("02", note.WavKey);
+    }
+
     [Fact]
     public void 이미_그_속도면_바꾸지_않고_되돌리기_한_번으로_돌아온다()
     {

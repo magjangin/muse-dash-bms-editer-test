@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using bms_editer.Services;
 
 namespace bms_editer.Models;
 
@@ -59,6 +60,10 @@ public static partial class WavSearch
     // 전부 null 이고, 분류 필터를 걸면 빠진다.
     // 종류는 이름의 첫 단어(뒤의 숫자는 뗀다)다. 코드 가운데 번호는 차트에 따라
     // 달라질 수 있어 쓰지 않는다.
+    // 속도는 게임이 실제로 읽는 UID 끝 두 자리(NoteSpeed)에서 먼저 읽는다. 실제 키음
+    // 파일명("011001_일반 노트1 지상 노멀_dt1.48.wav")에는 "스피드N" 글자가 없는 경우가
+    // 대부분이라, 글자만 보면 팔레트의 스피드 드롭다운이 통째로 숨겨졌다. UID 에 속도
+    // 자리가 없을 때(씬 전환·보스 연출)만 파일명의 "스피드N" 을 본다.
     public static WavTraits Traits(string fileName)
     {
         var name = Path.GetFileNameWithoutExtension(fileName);
@@ -69,13 +74,14 @@ public static partial class WavSearch
         var words = SceneWords().Replace(CleanName(fileName), string.Empty)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var kind = words.Length > 0 ? words[0].TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9') : string.Empty;
-        var speed = SpeedWord().Match(name);
+        var speedWord = SpeedWord().Match(name);
+        var speed = NoteSpeed.Of(name[..6]) ?? (speedWord.Success ? int.Parse(speedWord.Groups[1].Value) : null);
 
         return new WavTraits(
             int.Parse(code.Groups[1].Value),
             kind.Length == 0 ? null : kind,
             words.Contains("지상") ? "지상" : words.Contains("공중") ? "공중" : null,
-            speed.Success ? int.Parse(speed.Groups[1].Value) : null);
+            speed);
     }
 
     // 띄어쓰기로 나눈 낱말이 전부 들어 있어야 맞는다(AND).

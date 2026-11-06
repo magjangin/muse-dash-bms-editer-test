@@ -321,8 +321,15 @@ public sealed class SceneWavResolver
         var folder = cut < 0 ? "" : path[..(cut + 1)];
         var name = cut < 0 ? path : path[(cut + 1)..];
 
-        if (SceneUid.Of(name) is not null)
+        if (SceneUid.Of(name) is { } oldUid)
+        {
             name = newUid + name[6..];
+
+            // 속도를 바꿨으면 이름의 "스피드N" 도 맞춘다. 안 그러면 011003 인데 "스피드1" 로 읽힌다.
+            // 속도가 그대로면(씬만 바꿀 때) 이름은 건드리지 않는다.
+            if (NoteSpeed.Of(newUid) is { } newSpeed && NoteSpeed.Of(oldUid) != newSpeed)
+                name = Regex.Replace(name, @"스피드(\s*)\d", $"스피드${{1}}{newSpeed}");
+        }
         name = ReplaceSceneNumber(name, fromScene, toScene);
 
         if (rewriteFolder && folder.Length > 1)
@@ -344,13 +351,16 @@ public sealed class SceneWavResolver
         return Regex.Replace(text, $@"(?<!\d)0*{from}(?=\s*번\s*씬)", to);
     }
 
-    // 씬마다 달라지는 부분(UID·"N번 씬"·_dt 값·확장자)을 뗀 이름. 같은 키음인지 볼 때 쓴다.
+    // 씬·속도마다 달라지는 부분(UID·"N번 씬"·"스피드N"·_dt 값·확장자)을 뗀 이름. 같은 키음인지 볼 때 쓴다.
+    // 씬과 속도는 UID 로 따로 맞춰 보므로 이름표에서는 뺀다. "스피드N" 을 남겨 두면 표에 이미 있는
+    // "011003_… 스피드3" 을 못 알아보고 없는 파일로 정의를 하나 더 적었다.
     internal static string Label(string wavText)
     {
         var name = Path.GetFileNameWithoutExtension(SceneUid.FileNameOf(wavText));
         if (SceneUid.Of(name) is not null)
             name = name[6..];
 
+        name = Regex.Replace(name, @"스피드\s*\d", "");
         name = Regex.Replace(name, @"(?<!\d)\d+\s*번\s*씬", "");
         name = Regex.Replace(name, @"_dt-?[0-9.]+", "", RegexOptions.IgnoreCase);
         name = Regex.Replace(name, @"[\s_]+", " ");
