@@ -84,7 +84,42 @@ public sealed class NoteIconCatalog : IDisposable
         _userFolder = userFolder;
     }
 
-    public static string DefaultFolder => Path.Combine(AppContext.BaseDirectory, "note_icons");
+    public static string DefaultFolder
+    {
+        get
+        {
+            var baseDir = Path.Combine(AppContext.BaseDirectory, "note_icons");
+            if (Directory.Exists(baseDir))
+                return baseDir;
+
+            var cwdDir = Path.Combine(Environment.CurrentDirectory, "note_icons");
+            if (Directory.Exists(cwdDir))
+                return cwdDir;
+
+            try
+            {
+                var dir = new DirectoryInfo(AppContext.BaseDirectory);
+                for (var depth = 0; depth < 4 && dir is not null; depth++)
+                {
+                    var candidate = Path.Combine(dir.FullName, "note_icons");
+                    if (Directory.Exists(candidate))
+                        return candidate;
+
+                    var subCandidate = Path.Combine(dir.FullName, "muse dash bms editer", "note_icons");
+                    if (Directory.Exists(subCandidate))
+                        return subCandidate;
+
+                    dir = dir.Parent;
+                }
+            }
+            catch
+            {
+                // 경로 탐색 중 예외 무시
+            }
+
+            return baseDir;
+        }
+    }
 
     // #WAV 에 적힌 글자(경로여도 된다)의 파일명이 여섯 자리 숫자로 시작하면 그 여섯 자리.
     public static string? UidOf(string wavText)
@@ -221,7 +256,7 @@ public sealed class NoteIconCatalog : IDisposable
         return icon;
     }
 
-    // 사용자 폴더, exe 옆 폴더 순으로 쓰고, 없으면 exe 안에 넣어 둔 그림(로컬 빌드, EmbedNoteIcons=true)을 쓴다.
+    // 사용자 폴더, exe 옆 폴더 순으로 쓰고, 없으면 exe 안에 넣어 둔 그림(로컬/개인용 빌드, EmbedNoteIcons=true)을 쓴다.
     private Bitmap? OpenSource(string uid)
     {
         if (_userFolder is not null)

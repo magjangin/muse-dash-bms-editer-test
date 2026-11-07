@@ -29,8 +29,10 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Publish output
+# Publish output & Personal exe builds (게임 에셋 내장 개인용 exe는 절대 깃에 포함하지 않음)
 publish/
+personal/
+personal_build/
 
 # Local test/build logs & TestResults
 *.log
