@@ -270,8 +270,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         if (OggDurationSeconds <= 0 || Bpm <= 0)
             return 0;
 
-        var totalBeats = OggDurationSeconds * (Bpm / 60.0);
-        return Math.Max(1, (int)Math.Ceiling(totalBeats / 4.0));
+        var measurePosition = Timeline.MeasurePositionAt(OggDurationSeconds);
+        return Math.Max(1, (int)Math.Ceiling(measurePosition));
     }
 
     // 차트 안의 노트와 보존줄이 요구하는 마디 수.
@@ -384,8 +384,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         StopPlayback(resetCursor: false);
         _playbackTimer.Stop();
+        _playbackSpeedDebounceTimer.Stop();
         _gridSyncFlashTimer.Stop();
         _audioPlayer?.Dispose();
         _keySoundPlayer.Dispose();
+        _noteIconCatalog.Dispose();
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -21,7 +21,7 @@ public static class KeyboardChartReader
         new[] { "16", "11", "12", "13", "14", "15", "18", "19" };
 
     private static readonly Regex DataLine =
-        new(@"^#(\d{3})([0-9A-Za-z]{2}):\s*([0-9A-Za-z]+)\s*$", RegexOptions.Compiled);
+        new(@"^#(\d{3,})([0-9A-Za-z]{2}):\s*([0-9A-Za-z]+)\s*$", RegexOptions.Compiled);
 
     private static readonly Regex HeaderLine =
         new(@"^#([A-Za-z][A-Za-z0-9]*)(?:\s+(.*))?$", RegexOptions.Compiled);

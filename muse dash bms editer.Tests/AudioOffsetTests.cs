@@ -8,10 +8,26 @@ using Xunit;
 
 namespace bms_editer.Tests;
 
-public sealed class AudioOffsetTests
+public sealed class AudioOffsetTests : IDisposable
 {
     private const int SampleRate = 44100;
     private const int Channels = 2;
+    private readonly System.Collections.Generic.List<string> _tempDirectories = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
 
     private static OggAudioData BuildShiftedClickTrack(double bpm, int beats, double shiftSeconds)
     {
@@ -98,10 +114,11 @@ public sealed class AudioOffsetTests
         Assert.Equal(0.0229, owner.AudioOffsetSeconds, 9);
     }
 
-    private static string WriteTempChart(string content)
+    private string WriteTempChart(string content)
     {
         var directory = Path.Combine(Path.GetTempPath(), "bms-editer-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(directory);
+        _tempDirectories.Add(directory);
         var path = Path.Combine(directory, "chart.bms");
         File.WriteAllText(path, content, new UTF8Encoding(false));
         return path;
@@ -110,9 +127,9 @@ public sealed class AudioOffsetTests
     [Fact]
     public void 오프셋이_저장되고_다시_읽힌다()
     {
-        var path = WriteTempChart("#TITLE t`r`n#BPM 141`r`n#WAV01 a.wav`r`n#00111:01`r`n");
+        var path = WriteTempChart("#TITLE t\r\n#BPM 141\r\n#WAV01 a.wav\r\n#00111:01\r\n");
 
-        var owner = new MainWindowViewModel();
+        using var owner = new MainWindowViewModel();
         Assert.True(owner.LoadBms(path), owner.LastErrorMessage);
 
         owner.AudioOffsetMs = 22.9;
@@ -123,7 +140,7 @@ public sealed class AudioOffsetTests
 
         File.WriteAllText(path, text, new UTF8Encoding(false));
 
-        var reloaded = new MainWindowViewModel();
+        using var reloaded = new MainWindowViewModel();
         Assert.True(reloaded.LoadBms(path), reloaded.LastErrorMessage);
         Assert.Equal(22.9, reloaded.AudioOffsetMs, 3);
     }
@@ -133,7 +150,7 @@ public sealed class AudioOffsetTests
     {
         var path = WriteTempChart("#TITLE t\r\n#BPM 141\r\n#WAV01 a.wav\r\n#00111:01\r\n");
 
-        var owner = new MainWindowViewModel();
+        using var owner = new MainWindowViewModel();
         Assert.True(owner.LoadBms(path), owner.LastErrorMessage);
 
         var text = BmsWriter.Write(owner.Chart, owner.Title, owner.Artist, owner.Genre, owner.Bpm,
@@ -147,7 +164,7 @@ public sealed class AudioOffsetTests
     {
         var path = WriteTempChart("#TITLE t\r\n#BPM 141\r\n#BMSEDITER_OFFSET 22.9\r\n#WAV01 a.wav\r\n#00111:01\r\n");
 
-        var owner = new MainWindowViewModel();
+        using var owner = new MainWindowViewModel();
         Assert.True(owner.LoadBms(path), owner.LastErrorMessage);
         Assert.Equal(22.9, owner.AudioOffsetMs, 3);
 
@@ -163,7 +180,7 @@ public sealed class AudioOffsetTests
     {
         var path = WriteTempChart("#TITLE t\r\n#BPM 141\r\n#BMSEDITER_OFFSET -15.5\r\n#WAV01 a.wav\r\n#00111:01\r\n");
 
-        var owner = new MainWindowViewModel();
+        using var owner = new MainWindowViewModel();
         Assert.True(owner.LoadBms(path), owner.LastErrorMessage);
 
         Assert.Equal(-15.5, owner.AudioOffsetMs, 3);

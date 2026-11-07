@@ -23,8 +23,25 @@ namespace bms_editer.Tests;
 //
 // 렌더링까지 실제로 돈다(HeadlessAppFixture 가 Skia + UseHeadlessDrawing=false).
 // 레이아웃이나 바인딩이 터지면 여기서 예외가 난다.
-public sealed class WindowSmokeTests
+public sealed class WindowSmokeTests : IDisposable
 {
+    private readonly System.Collections.Generic.List<string> _tempDirectories = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
     // Avalonia 는 자기 스레드에서만 창을 만들 수 있다. 세션 하나를 어셈블리 단위로 공유한다.
     private static void RunOnUiThread(Action body) =>
         HeadlessUnitTestSession
@@ -33,10 +50,11 @@ public sealed class WindowSmokeTests
             .GetAwaiter()
             .GetResult();
 
-    private static MainWindowViewModel LoadedOwner()
+    private MainWindowViewModel LoadedOwner()
     {
         var directory = Path.Combine(Path.GetTempPath(), "bms-editer-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(directory);
+        _tempDirectories.Add(directory);
 
         var path = Path.Combine(directory, "chart.bms");
         File.WriteAllText(
@@ -59,7 +77,8 @@ public sealed class WindowSmokeTests
     [Fact]
     public void 통계_창이_열리고_집계를_보여준다() => RunOnUiThread(() =>
     {
-        var viewModel = new NoteStatsViewModel(LoadedOwner());
+        using var owner = LoadedOwner();
+        using var viewModel = new NoteStatsViewModel(owner);
         var window = new NoteStatsWindow(viewModel);
 
         ShowAndDraw(window);
@@ -72,12 +91,14 @@ public sealed class WindowSmokeTests
         var list = window.GetVisualDescendants().OfType<ListBox>().Single();
         Assert.Equal(2, list.ItemsSource!.Cast<object>().Count());
         Assert.True(list.IsEffectivelyVisible);
+        window.Close();
     });
 
     [Fact]
     public void 컨트롤_패널이_열리고_집계를_보여준다() => RunOnUiThread(() =>
     {
-        var viewModel = new ControlPanelViewModel(LoadedOwner());
+        using var owner = LoadedOwner();
+        using var viewModel = new ControlPanelViewModel(owner);
         var window = new ControlPanelWindow(viewModel);
 
         ShowAndDraw(window);
@@ -91,6 +112,7 @@ public sealed class WindowSmokeTests
         Assert.Equal(2, lists.Count);
         Assert.All(lists, list => Assert.True(list.IsEffectivelyVisible));
         Assert.Equal(2, lists[1].ItemsSource!.Cast<object>().Count());
+        window.Close();
     });
 
     // 창에서 명령까지 닿는 길이 실제로 이어져 있는지.
@@ -101,7 +123,8 @@ public sealed class WindowSmokeTests
     [Fact]
     public void 컨트롤_패널의_작업_버튼에_명령이_붙어_있다() => RunOnUiThread(() =>
     {
-        var viewModel = new ControlPanelViewModel(LoadedOwner());
+        using var owner = LoadedOwner();
+        using var viewModel = new ControlPanelViewModel(owner);
         var window = new ControlPanelWindow(viewModel);
         ShowAndDraw(window);
 
@@ -111,13 +134,14 @@ public sealed class WindowSmokeTests
 
         Assert.Equal(6, buttons.Count);
         Assert.All(buttons, button => Assert.NotNull(button.Command));
+        window.Close();
     });
 
     [Fact]
     public void 컨트롤_패널은_편집을_따라_다시_집계한다() => RunOnUiThread(() =>
     {
-        var owner = LoadedOwner();
-        var viewModel = new ControlPanelViewModel(owner);
+        using var owner = LoadedOwner();
+        using var viewModel = new ControlPanelViewModel(owner);
         var window = new ControlPanelWindow(viewModel);
         ShowAndDraw(window);
 
@@ -128,28 +152,33 @@ public sealed class WindowSmokeTests
 
         Assert.Equal(0, viewModel.TotalCount);
         Assert.Empty(viewModel.WavStats);
+        window.Close();
     });
 
     [Fact]
     public void 검색_창이_열린다() => RunOnUiThread(() =>
     {
-        var viewModel = new NoteSearchViewModel(LoadedOwner());
+        using var owner = LoadedOwner();
+        using var viewModel = new NoteSearchViewModel(owner);
         var window = new NoteSearchWindow(viewModel);
 
         ShowAndDraw(window);
 
         Assert.NotEmpty(viewModel.Lanes);
+        window.Close();
     });
 
     [Fact]
     public void 키음_팔레트_창이_열린다() => RunOnUiThread(() =>
     {
-        var viewModel = new WavPaletteViewModel(LoadedOwner());
+        using var owner = LoadedOwner();
+        using var viewModel = new WavPaletteViewModel(owner);
         var window = new WavPaletteWindow(viewModel);
 
         ShowAndDraw(window);
 
         Assert.Equal(2, viewModel.Items.Count);
+        window.Close();
     });
 
     [Fact]
@@ -161,12 +190,13 @@ public sealed class WindowSmokeTests
         ShowAndDraw(window);
 
         Assert.True(window.IsVisible);
+        window.Close();
     });
 
     [Fact]
     public void 우클릭_시_재생이_멈춘다() => RunOnUiThread(() =>
     {
-        var owner = LoadedOwner();
+        using var owner = LoadedOwner();
         var window = new MainWindow { DataContext = owner };
         ShowAndDraw(window);
         var vm = (MainWindowViewModel)window.DataContext!;
@@ -196,12 +226,13 @@ public sealed class WindowSmokeTests
         vm.IsPlaying = true;
         window.MouseDown(new Avalonia.Point(50, 40), Avalonia.Input.MouseButton.Right);
         Assert.False(vm.IsPlaying);
+        window.Close();
     });
 
     [Fact]
     public void 팔레트_버튼_클릭_시_연필_아이콘이_활성화된다() => RunOnUiThread(() =>
     {
-        var owner = LoadedOwner();
+        using var owner = LoadedOwner();
         owner.IsEditMode = false;
         var window = new MainWindow { DataContext = owner };
         ShowAndDraw(window);
@@ -214,5 +245,6 @@ public sealed class WindowSmokeTests
         paletteButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
         Assert.True(owner.IsEditMode);
+        window.Close();
     });
 }

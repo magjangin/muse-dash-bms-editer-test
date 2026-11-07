@@ -21,6 +21,18 @@ public partial class ControlPanelWindow : Window
         DataContext = viewModel;
     }
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
+    }
+
     private void OnLaneRowDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (DataContext is ControlPanelViewModel vm && vm.SelectLaneNotesCommand.CanExecute(null))

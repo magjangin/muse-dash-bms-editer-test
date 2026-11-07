@@ -294,7 +294,7 @@
                     <StackPanel Spacing="4">
                         <ListBox ItemsSource="{Binding WavList}" SelectedItem="{Binding SelectedWavItem}" Height="120">
                             <ListBox.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="models:BmsWavItem">
                                     <TextBlock Text="{Binding DisplayText}" />
                                 </DataTemplate>
                             </ListBox.ItemTemplate>

@@ -514,7 +514,8 @@ public static partial class BmsParser
         foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
         {
             var fileName = Path.GetFileName(path);
-            if (!index.ContainsKey(fileName))
+            var isTopLevel = string.Equals(Path.GetDirectoryName(path), directory, StringComparison.OrdinalIgnoreCase);
+            if (!index.ContainsKey(fileName) || isTopLevel)
                 index[fileName] = path;
         }
 

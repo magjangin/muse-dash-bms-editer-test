@@ -46,9 +46,13 @@ public sealed class NoteIconTests
 
     [Theory]
     [InlineData("031107", NoteDirection.Up)]
+    [InlineData("031108", NoteDirection.Up)]
     [InlineData("021210", NoteDirection.Up)]
+    [InlineData("021212", NoteDirection.Up)]
     [InlineData("031113", NoteDirection.Down)]
+    [InlineData("031114", NoteDirection.Down)]
     [InlineData("081116", NoteDirection.Down)]
+    [InlineData("081118", NoteDirection.Down)]
     [InlineData("031101", NoteDirection.None)]
     [InlineData("031104", NoteDirection.None)]
     [InlineData("0311", NoteDirection.None)]
@@ -92,8 +96,11 @@ public sealed class NoteIconTests
     public void 복선의_공중만_어느_씬이든_조금_키운다()
     {
         Assert.True(NoteIconCatalog.ScaleFor("010504") > 1.0);
+        Assert.True(NoteIconCatalog.ScaleFor("010505") > 1.0);
         Assert.True(NoteIconCatalog.ScaleFor("030510") > 1.0);
+        Assert.True(NoteIconCatalog.ScaleFor("030512") > 1.0);
         Assert.True(NoteIconCatalog.ScaleFor("050516") > 1.0);
+        Assert.True(NoteIconCatalog.ScaleFor("050518") > 1.0);
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("010501"));
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("030507"));
         Assert.Equal(1.0, NoteIconCatalog.ScaleFor("031004"));

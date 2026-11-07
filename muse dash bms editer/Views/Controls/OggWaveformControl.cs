@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using bms_editer.Services;
 
 namespace bms_editer.Views.Controls;
@@ -68,8 +69,12 @@ public sealed class OggWaveformControl : TimelineControlBase
     }
 
     private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
-    private static readonly Pen WavePen = new(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
-    private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));
+    private static readonly Pen WavePen = new(new ImmutableSolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
+    private static readonly IBrush WaveFillBrush = new ImmutableSolidColorBrush(Color.FromArgb(125, 120, 150, 135));
+    private static readonly IBrush WaveformBackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(15, 20, 20));
+    private static readonly IPen WaveformSubBeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1);
+    private static readonly IPen WaveformBeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
+    private static readonly IPen WaveformMeasurePen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
 
     public override void Render(DrawingContext context)
     {
@@ -83,7 +88,7 @@ public sealed class OggWaveformControl : TimelineControlBase
         var waveformThickness = IsHorizontalView ? height : width;
         var center = waveformThickness / 2.0;
 
-        context.FillRectangle(new SolidColorBrush(Color.FromRgb(15, 20, 20)), new Rect(0, 0, width, height));
+        context.FillRectangle(WaveformBackgroundBrush, new Rect(0, 0, width, height));
 
         if (IsHorizontalView)
         {
@@ -247,7 +252,7 @@ public sealed class OggWaveformControl : TimelineControlBase
     {
         var pens = new IPen[146];
         for (var alpha = 25; alpha < pens.Length; alpha++)
-            pens[alpha] = new Pen(new SolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
+            pens[alpha] = new Pen(new ImmutableSolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
         return pens;
     }
 
@@ -332,17 +337,13 @@ public sealed class OggWaveformControl : TimelineControlBase
         if (timelineLength <= 0 || Bpm <= 0)
             return;
 
-        var subBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1);
-        var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
-        var measurePen = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
-
         foreach (var line in EnumerateGridLines(timelineLength))
         {
             var pen = line.Kind switch
             {
-                GridLineKind.Measure => measurePen,
-                GridLineKind.Beat => beatPen,
-                _ => subBeatPen,
+                GridLineKind.Measure => WaveformMeasurePen,
+                GridLineKind.Beat => WaveformBeatPen,
+                _ => WaveformSubBeatPen,
             };
 
             if (isHorizontal)

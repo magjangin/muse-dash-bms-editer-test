@@ -75,7 +75,8 @@ public static partial class WavSearch
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var kind = words.Length > 0 ? words[0].TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9') : string.Empty;
         var speedWord = SpeedWord().Match(name);
-        var speed = NoteSpeed.Of(name[..6]) ?? (speedWord.Success ? int.Parse(speedWord.Groups[1].Value) : null);
+        var speed = (name.Length >= 6 ? NoteSpeed.Of(name[..6]) : null)
+            ?? (speedWord.Success ? int.Parse(speedWord.Groups[1].Value) : null);
 
         return new WavTraits(
             int.Parse(code.Groups[1].Value),
@@ -85,16 +86,30 @@ public static partial class WavSearch
     }
 
     // 띄어쓰기로 나눈 낱말이 전부 들어 있어야 맞는다(AND).
-    // 낱말은 번호, 파일명, 초성으로 맞춰 본다. 예) "ㅎㅌ 지상" → "하트 지상".
-    public static bool Matches(BmsWavItem item, string query) => Matches(item.Key, item.FileName, query);
-
-    public static bool Matches(string key, string fileName, string query)
+    // 낱말은 번호, 파일명, 표시 이름(예: "1번 씬"), 초성으로 맞춰 본다. 예) "ㅎㅌ 지상" → "하트 지상".
+    public static bool Matches(BmsWavItem item, string query)
     {
         var tokens = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         foreach (var token in tokens)
         {
+            if (!item.Key.Contains(token, StringComparison.OrdinalIgnoreCase) &&
+                !ContainsWithInitials(item.FileName, token) &&
+                !ContainsWithInitials(item.ShortName, token))
+                return false;
+        }
+
+        return true;
+    }
+
+    public static bool Matches(string key, string fileName, string query)
+    {
+        var displayName = DisplayName(fileName);
+        var tokens = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var token in tokens)
+        {
             if (!key.Contains(token, StringComparison.OrdinalIgnoreCase) &&
-                !ContainsWithInitials(fileName, token))
+                !ContainsWithInitials(fileName, token) &&
+                !ContainsWithInitials(displayName, token))
                 return false;
         }
 

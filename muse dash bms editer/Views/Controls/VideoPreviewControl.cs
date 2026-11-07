@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
 using Microsoft.Web.WebView2.Core;
@@ -27,6 +28,10 @@ public sealed class VideoPreviewControl : Control, IDisposable
     private double _lastRequestedSeconds;
     private string _statusText = "VIDEO";
 
+    private static readonly IBrush BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(10, 10, 12));
+    private static readonly IBrush StatusTextBrush = new ImmutableSolidColorBrush(Color.FromArgb(150, 210, 210, 210));
+    private static readonly Typeface StatusTypeface = new("Inter, Arial, sans-serif");
+
     public VideoPreviewControl()
     {
         ClipToBounds = true;
@@ -34,16 +39,16 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     public override void Render(DrawingContext context)
     {
-        context.FillRectangle(new SolidColorBrush(Color.FromRgb(10, 10, 12)), Bounds);
+        context.FillRectangle(BackgroundBrush, Bounds);
         if (!_hasVideo || _webView is null)
         {
             var text = new FormattedText(
                 _statusText,
                 CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
-                new Typeface("Inter, Arial, sans-serif"),
+                StatusTypeface,
                 13,
-                new SolidColorBrush(Color.FromArgb(150, 210, 210, 210)));
+                StatusTextBrush);
 
             context.DrawText(text, new Point((Bounds.Width - text.Width) / 2, (Bounds.Height - text.Height) / 2));
         }

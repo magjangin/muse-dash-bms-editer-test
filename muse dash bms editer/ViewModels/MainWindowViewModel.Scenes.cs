@@ -166,11 +166,7 @@ public sealed partial class MainWindowViewModel
             return result;
 
         // 3. 한꺼번에 적용한다. 되돌리기 한 칸에 전부 담긴다.
-        foreach (var wav in resolver.Created)
-        {
-            Chart.WavTable[wav.Key] = wav.FilePath;
-            WavList.Add(wav);
-        }
+        AddCreatedWavsWithoutIntermediateHistory(resolver.Created);
         _keySoundPlayer.PreloadAsync(resolver.Created.Select(w => w.FilePath).Where(File.Exists).ToArray());
 
         foreach (var (note, key) in rekeys)

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using bms_editer.ViewModels;
 
 namespace bms_editer.Views;
@@ -15,5 +16,17 @@ public partial class NoteStatsWindow : Window
     public NoteStatsWindow(NoteStatsViewModel viewModel) : this()
     {
         DataContext = viewModel;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
     }
 }

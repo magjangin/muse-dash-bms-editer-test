@@ -19,4 +19,11 @@
     <ProjectReference Include="..\muse dash bms editer\muse dash bms editer.csproj" />
   </ItemGroup>
 
+  <Target Name="RemoveWebView2DesktopWrapperReferences" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+    </ItemGroup>
+  </Target>
+
 </Project>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,9 +73,10 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
     public void PreloadAsync(IEnumerable<string> filePaths)
     {
+        var snapshot = filePaths.ToArray();
         Task.Run(() =>
         {
-            foreach (var path in filePaths)
+            foreach (var path in snapshot)
             {
                 if (_isDisposed) break;
                 Preload(path);
@@ -150,7 +152,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
             if (!hasVoices)
             {
-                if (silentBuffersCount >= BufferCount)
+                if (silentBuffersCount >= BufferCount && AreAllHeadersDone())
                 {
                     // 활성 보이스가 없고 잔여 버퍼도 모두 재생 완료된 경우 대기
                     CloseWaveOut();
@@ -177,8 +179,10 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
             // 믹싱 버퍼 초기화
             Array.Clear(shortBuffer, 0, shortBuffer.Length);
 
+            bool mixedAnyVoice;
             lock (_lock)
             {
+                mixedAnyVoice = _activeVoices.Count > 0;
                 for (var v = _activeVoices.Count - 1; v >= 0; v--)
                 {
                     var voice = _activeVoices[v];
@@ -197,11 +201,9 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
                         _activeVoices.RemoveAt(v);
                     }
                 }
-
-                hasVoices = _activeVoices.Count > 0;
             }
 
-            if (hasVoices)
+            if (mixedAnyVoice)
             {
                 silentBuffersCount = 0;
             }
@@ -301,6 +303,18 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         }
     }
 
+    private bool AreAllHeadersDone()
+    {
+        for (var i = 0; i < BufferCount; i++)
+        {
+            var hdr = (WaveHeader*)_headerPtrs[i];
+            if ((hdr->Flags & WHDR_PREPARED) != 0 && (hdr->Flags & WHDR_DONE) == 0)
+                return false;
+        }
+
+        return true;
+    }
+
     public void Dispose()
     {
         if (_isDisposed) return;
@@ -309,7 +323,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
         try
         {
-            _playbackThread?.Join(300);
+            _playbackThread?.Join();
         }
         catch
         {

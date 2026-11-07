@@ -14,6 +14,8 @@
     <Product>muse dash bms editer</Product>
     <Company>magjangin</Company>
     <Description>BMS Chart Editor for Muse Dash</Description>
+    <WebView2UseWpf>false</WebView2UseWpf>
+    <WebView2UseWinForms>false</WebView2UseWinForms>
   </PropertyGroup>
 
   <ItemGroup>
@@ -47,12 +49,20 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+      <PrivateAssets>All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3124.44" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
+
+  <!-- WebView2 패키지가 WPF/WinForms 래퍼 DLL을 Reference에 강제로 넣어 WindowsBase 4.0 vs 5.0 충돌 경고(MSB3277)를 내므로,
+       CoreWebView2만 쓰는 이 프로젝트에서는 해석 전에 제거한다. -->
+  <Target Name="RemoveWebView2DesktopWrapperReferences" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+    </ItemGroup>
+  </Target>
 
   <!-- 배포(publish) 산출물에서 PDB와 XML 문서 파일을 제외한다.
        SkiaSharp/HarfBuzz 네이티브 PDB만 100MB가 넘고, WebView2 XML 문서도 배포에 불필요하다.

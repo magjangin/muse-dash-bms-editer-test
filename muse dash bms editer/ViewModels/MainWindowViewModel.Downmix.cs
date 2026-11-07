@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -52,6 +52,7 @@ public sealed partial class MainWindowViewModel
 
         // 한 번에 갈아끼운다. 하나씩 넣으면 항목마다 알림이 나가 통계·팔레트가 매번 재집계한다.
         WavList.ReplaceAll(parsed.WavItems);
+        _keySoundPlayer.PreloadAsync(Chart.WavTable.Values);
         SelectedWavItem = WavList.FirstOrDefault();
 
         LastErrorMessage = null;
@@ -172,7 +173,7 @@ public sealed partial class MainWindowViewModel
 
     // 원본에서 딸려 온 건반 줄. 보존줄에 남겨 두면 저장할 때 건반 채널이 그대로 따라 나온다.
     private static readonly Regex KeyboardLines =
-        new(@"^#(?:\d{3}(?:[1256][1-9]):|LN(?:OBJ|TYPE)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        new(@"^#(?:\d{3,}(?:[1256][1-9]):|LN(?:OBJ|TYPE)\b)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // 문서를 변환 결과로 통째로 갈아 끼운다. 되돌리기 한 칸에 전부 담기도록 한 번에 한다.
     private void ReplaceDocumentWithDownmix(
@@ -183,7 +184,7 @@ public sealed partial class MainWindowViewModel
     {
         var folder = Path.GetDirectoryName(sourcePath)!;
 
-        _history.UpdateBaselineDocument(TakeSnapshot("").Document!);
+        _history.UpdateBaselineDocument(TakeSnapshot("", includeDocument: true).Document!);
         _isRestoringHistory = true;
         try
         {
@@ -193,7 +194,7 @@ public sealed partial class MainWindowViewModel
 
             Chart.WavTable.Clear();
             foreach (var (key, text) in targetWavs)
-                Chart.WavTable[key] = Path.Combine(folder, text);
+                Chart.WavTable[key] = Path.IsPathRooted(text) ? text : Path.Combine(folder, text);
 
             var originalWavs = parsedSource.WavItems.GroupBy(w => w.Key).ToDictionary(g => g.Key, g => g.Last());
             WavList.ReplaceAll(targetWavs.Select(pair => originalWavs.TryGetValue(pair.Key, out var original)
@@ -202,8 +203,9 @@ public sealed partial class MainWindowViewModel
                 {
                     Key = pair.Key,
                     SourceText = pair.Value,
-                    FilePath = Path.Combine(folder, pair.Value),
+                    FilePath = Path.IsPathRooted(pair.Value) ? pair.Value : Path.Combine(folder, pair.Value),
                 }));
+            _keySoundPlayer.PreloadAsync(Chart.WavTable.Values);
 
             SelectedWavItem = WavList.FirstOrDefault();
             InvalidateWavSnapshot();

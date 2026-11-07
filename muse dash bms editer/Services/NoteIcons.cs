@@ -56,7 +56,7 @@ public sealed class NoteIcon
 // 그림은 <UID>.png 로 찾는다. 사용자 폴더(NoteIconImporter.UserFolder, "노트 그림 가져오기"가 만든다)를 먼저,
 // 다음으로 exe 옆 note_icons 폴더를 본다. 게임에서 뽑은 그림이라 배포 exe 에는 넣지 않는다.
 // 폴더가 없거나 그림이 없는 노트는 호출하는 쪽이 단색 동그라미로 그린다.
-public sealed class NoteIconCatalog
+public sealed class NoteIconCatalog : IDisposable
 {
     // 같은 종류(UID 앞 4자리 = 씬+종류)는 그림 모양이 비슷해서 배율도 같게 둔다.
     // 종류 번호만으로 찾으면 다른 씬의 같은 번호(0106 구슬 ↔ 0206 블록)에 배율이 번져서 씬까지 같이 본다.
@@ -136,6 +136,7 @@ public sealed class NoteIconCatalog
         if (uid.Length != 6 || IsBossAction(uid))
             return NoteDirection.None;
 
+        uid = SpeedOneOf(uid);
         return uid.AsSpan(4, 2) switch
         {
             "07" or "10" => NoteDirection.Up,
@@ -157,6 +158,8 @@ public sealed class NoteIconCatalog
     {
         if (uid.Length != 6)
             return 1.0;
+
+        uid = SpeedOneOf(uid);
 
         if (ScaleByKind.TryGetValue(uid, out var exact))
             return exact;
@@ -235,6 +238,17 @@ public sealed class NoteIconCatalog
         using var stream = typeof(NoteIconCatalog).Assembly.GetManifestResourceStream($"note_icons/{uid}.png");
         return stream is null ? null : new Bitmap(stream);
     }
+
+    public void Dispose()
+    {
+        var disposed = new HashSet<Bitmap>();
+        foreach (var icon in _byUid.Values)
+        {
+            if (icon is not null && disposed.Add(icon.Image))
+                icon.Image.Dispose();
+        }
+        _byUid.Clear();
+    }
 }
 
 // 게임에서 뽑은 그림을 그대로 쓰면 그림자와 긴 줄 때문에 본체가 작아진다. 불러올 때 한 번 다듬는다.
@@ -243,7 +257,7 @@ internal static class NoteIconImage
     public static Bitmap? Prepare(Bitmap source, bool bodyOnly = false)
     {
         var size = source.PixelSize;
-        var bitmap = new WriteableBitmap(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+        using var bitmap = new WriteableBitmap(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         byte[] pixels;
         int stride;
 
