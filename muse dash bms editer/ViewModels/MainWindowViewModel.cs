@@ -347,13 +347,19 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private bool _isDirty;
 
+    // 에셋 내장 여부로 1번(개인용) / 2번(릴리즈용) 판별
+    public static bool IsPersonalEdition =>
+        typeof(MainWindowViewModel).Assembly.GetManifestResourceNames().Any(n => n.StartsWith("note_icons/"));
+
+    public static string EditionLabel => IsPersonalEdition ? "1. 개인용" : "2. 릴리즈용";
+
     // 제목 표시줄. 어떤 파일을 열었고 저장했는지가 여기 말고는 드러나는 곳이 없다.
     public string WindowTitle
     {
         get
         {
             var name = CurrentFilePath is { } path ? System.IO.Path.GetFileName(path) : "제목 없음";
-            return $"{(IsDirty ? "*" : "")}{name} - bms editer";
+            return $"{(IsDirty ? "*" : "")}{name} - bms editer ({EditionLabel})";
         }
     }
 

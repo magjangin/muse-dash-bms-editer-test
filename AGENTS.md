@@ -1,9 +1,15 @@
 # Muse Dash BMS Editor — Project Handover & Agent Guide
 
 > [!IMPORTANT]
-> **패키징 이원화 및 클린 배포 규칙**:
-> 1. **개인용 (`publish/personal/`)**: `EmbedNoteIcons=true`로 모든 스프라이트가 exe 내부에 100% 임베드되어 있어, **외부 폴더 없이 내장 exe 단독 파일**만 존재합니다 (Git 미포함).
-> 2. **릴리즈용/기타 (`publish/release/`)**: exe 자체에는 에셋을 내장하지 않고, **외부 `note_icons` 폴더가 함께 있는 구성**으로 동작합니다.
+> **패키징 이원화 및 번호/아이콘 규칙**:
+> 1. **1번: 개인용 (`publish/personal/muse dash bms editer 1.exe`)**:
+>    - `EmbedNoteIcons=true`로 모든 스프라이트가 exe 내부에 100% 임베드된 **단일 exe**입니다 (외부 폴더 없음, Git 미포함).
+>    - 앱 아이콘: **골드 앰버 + 숫자 1 뱃지** (`Assets/icon_personal.ico`).
+>    - 창 제목: `[1. 개인용]` 접미사 자동 표기.
+> 2. **2번: 릴리즈용 (`publish/release/muse dash bms editer 2.exe`)**:
+>    - exe 자체는 에셋 미내장 순수 바이너리이며, **외부 `note_icons/` 폴더가 함께 있는 구성**입니다.
+>    - 앱 아이콘: **사이언 블루 + 숫자 2 뱃지** (`Assets/icon_release.ico`).
+>    - 창 제목: `[2. 릴리즈용]` 접미사 자동 표기.
 > 3. **퍼블리싱 전 클린 빌드 권장**: `PublishSingleFile` 캐시 잔여 문제를 방지하기 위해 배포 스크립트 실행 시 기존 산출물을 자동 정리 후 새로 패키징합니다.
 
 ---
@@ -23,6 +29,7 @@
 
 ```
 muse dash bms editer/
+├── Assets/                     # 앱 아이콘 (icon_personal.ico, icon_release.ico 등)
 ├── Models/                     # BMS 차트 데이터 모델 (BmsChart, BmsNote, BmsHeader, HoldModels 등)
 ├── Services/                   # 핵심 도메인 로직
 │   ├── BmsParser.cs / BmsWriter.cs  # 원본 보존형 BMS 파서/라이터 (인코딩 자동 보존)
@@ -41,9 +48,8 @@ muse dash bms editer/
 
 ## 3. 핵심 설계 의도 & Rationale (우회 및 구현 이유)
 
-1. **배포 바이너리 형태 이원화**:
-   - **개인용 (`publish/personal/`)**: 사용자가 단일 exe만 편리하게 보관 및 실행할 수 있도록 `EmbedNoteIcons=true` 옵션으로 **모든 PNG 스프라이트를 Single-File exe 내부에 100% 임베드**합니다. 외부 `note_icons` 폴더 없이 깔끔하게 **내장 exe 단독 파일만** 유지됩니다.
-   - **릴리즈/배포용 (`publish/release/`)**: 공개 배포 시 저작권 바이너리 문제를 방지하기 위해 exe 자체는 순수 바이너리(`EmbedNoteIcons=false`)로 만들고, 에셋이 필요할 경우 외부 `note_icons` 폴더를 참조하는 분리형("폴더가 있는 exe") 구조로 제공합니다.
+1. **배포 바이너리 번호 및 아이콘 차별화**:
+   - 사용자가 실행 시 헷갈리지 않도록 개인용은 **`1`번 (골드 아이콘, 에셋 100% 내장 단일 exe)**, 릴리즈용은 **`2`번 (블루 아이콘, 에셋 폴더 분리형 exe)**으로 파일명과 아이콘, 창 제목을 완전히 분리했습니다.
 2. **원자적 저장 및 인코딩 자동 보존**:
    - Shift_JIS(CP932), CP949, UTF-8(BOM 유무)를 감지하여 원본 인코딩 그대로 저장합니다.
    - 임시 파일(`.tmp`)에 완전히 작성한 후 교체하는 원자적 교체 및 `.bak` 백업 방식을 적용하여 크래시 발생 시 차트 파일 유실을 방지합니다.
@@ -69,10 +75,9 @@ muse dash bms editer/
 
 ## 5. 시도했다가 실패한 것들 (Dead Ends / 주의사항)
 
-* ❌ **personal 폴더에 내장 exe와 note_icons 폴더를 함께 두는 중복 구성**:
-  - personal 버전은 exe 내부에 이미 모든 리소스가 100% 임베드되어 있으므로 외부 폴더를 둘 필요가 없으며, 단일 exe만 깔끔하게 유지해야 함.
-* ❌ **배포(Publish) 시 `CopyToPublishDirectory="Never"` 유지 상태에서 외부 폴더 없이 배포**:
-  - `EmbedNoteIcons=false` 상태로 단일 exe만 만들면 외부 `note_icons` 폴더가 없어 기본 단색 동그라미로 폴백됨. 따라서 릴리즈/외부 폴더 버전은 반드시 `note_icons` 폴더와 함께 패키징되어야 함.
+* ❌ **Single-File exe를 파일 시스템에서 임의로 이름 바꾸기(Move-Item)**:
+  - `.NET Single-File` 환경에서 파일명을 사후 변경하면 HostFXR이 번들 매니페스트를 찾지 못해 `2147516562` (0x80008092) 크래시 발생.
+  - 해결: 빌드 프로필(`personal.pubxml`, `release.pubxml`)에 `<AssemblyName>`을 각각 `muse dash bms editer 1`, `muse dash bms editer 2`로 지정하여 .NET SDK가 처음부터 일치된 매니페스트로 빌드하도록 구성.
 * ❌ **기존 산출물 덮어쓰기 빌드**:
   - `PublishSingleFile` 환경에서 기존 exe가 남아있는 상태로 덮어쓰기 빌드를 진행할 경우 구버전 매니페스트 캐시나 임베딩 충돌이 발생할 수 있음. 퍼블리싱 전 반드시 기존 파일 삭제 후 재패키징 필요.
 
@@ -80,9 +85,9 @@ muse dash bms editer/
 
 ## 6. 빌드 & 패키징 스크립트 가이드
 
-| 스크립트 | 대상 | 설명 |
+| 스크립트 | 대상 파일 | 설명 |
 | :--- | :--- | :--- |
-| **[`build_personal.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/build_personal.bat)** | [`publish/personal/`](file:///h:/source/repos/muse%20dash%20bms%20editer/publish/personal/) | **[개인용]** 에셋이 100% 내장된 **단일 `.exe`만 단독으로** 패키징 (외부 폴더 없음, Git 미포함) |
-| **[`build_release.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/build_release.bat)** | [`publish/release/`](file:///h:/source/repos/muse%20dash%20bms%20editer/publish/release/) | **[릴리즈용]** 순수 바이너리 `.exe` + **외부 `note_icons` 폴더가 함께 있는** 구성으로 패키징 |
-| **[`build_publish.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/build_publish.bat)** | 둘 다 | 기존 산출물 완전 삭제 후 개인용(내장 exe 단독)과 릴리즈용(폴더 분리형)을 순차적으로 패키징 |
-| **[`run_personal.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/run_personal.bat)** | 실행 | 개인용 내장 exe를 바로 실행 (없으면 자동 빌드 후 실행) |
+| **[`build_personal.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/build_personal.bat)** | [`publish/personal/muse dash bms editer 1.exe`](file:///h:/source/repos/muse%20dash%20bms%20editer/publish/personal/muse%20dash%20bms%20editer%201.exe) | **[1번: 개인용]** 골드 아이콘 + 에셋 100% 내장 단일 exe 패키징 |
+| **[`build_release.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/build_release.bat)** | [`publish/release/muse dash bms editer 2.exe`](file:///h:/source/repos/muse%20dash%20bms%20editer/publish/release/muse%20dash%20bms%20editer%202.exe) | **[2번: 릴리즈용]** 블루 아이콘 + 외부 `note_icons` 폴더 세트 패키징 |
+| **[`build_publish.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/build_publish.bat)** | 둘 다 | 기존 산출물 삭제 후 1번과 2번을 순차적으로 클린 패키징 |
+| **[`run_personal.bat`](file:///h:/source/repos/muse%20dash%20bms%20editer/run_personal.bat)** | 실행 | 1번 개인용 exe를 바로 실행 (없으면 자동 빌드 후 실행) |

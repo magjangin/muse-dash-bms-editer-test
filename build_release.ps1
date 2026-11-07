@@ -1,20 +1,20 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host " [릴리즈용] Muse Dash BMS Editor 패키징 (폴더 분리형)" -ForegroundColor Cyan
+Write-Host " [2번: 릴리즈용] Muse Dash BMS Editor 패키징 (폴더 분리형)" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
 
 $targetDir = "publish/release"
-$exePath = Join-Path $targetDir "muse dash bms editer.exe"
+$exePath = Join-Path $targetDir "muse dash bms editer 2.exe"
 
-# 1. 기존 파일 정리 (퍼블리싱 전 삭제 권장 정책)
+# 1. 기존 폴더 내용 정리
 if (Test-Path $targetDir) {
     Write-Host "[정리] 기존 릴리즈 폴더 내용 정리 중..." -ForegroundColor Gray
     Get-ChildItem -Path $targetDir -Recurse | Remove-Item -Recurse -Force
 }
 
-# 2. 릴리즈 빌드 실행 (EmbedNoteIcons=false: 에셋 미내장 순수 바이너리)
-Write-Host "[빌드] 에셋 미내장 exe 패키징 중..." -ForegroundColor Yellow
+# 2. 2번 릴리즈 빌드 실행 (EmbedNoteIcons=false, AssemblyName="muse dash bms editer 2")
+Write-Host "[빌드] 2번 릴리즈 exe (에셋 미내장 + 2번 블루 아이콘) 패키징 중..." -ForegroundColor Yellow
 dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProfile=release
 if ($LASTEXITCODE -ne 0) {
     Write-Error "릴리즈용 exe 빌드 실패!"
@@ -32,7 +32,8 @@ if (Test-Path $iconsSrc) {
 }
 
 Write-Host "`n========================================================" -ForegroundColor Green
-Write-Host " 릴리즈용 빌드 완료!" -ForegroundColor Green
-Write-Host " 실행 경로: $exePath" -ForegroundColor Green
+Write-Host " [2번: 릴리즈용] 빌드 완료!" -ForegroundColor Green
+Write-Host " 실행 파일: $exePath" -ForegroundColor Green
+Write-Host " 앱 아이콘: Assets\icon_release.ico (사이언 블루 + 2번 뱃지)" -ForegroundColor Green
 Write-Host " 에셋 폴더: $iconsDst (폴더 포함 버전)" -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green

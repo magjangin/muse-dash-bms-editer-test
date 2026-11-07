@@ -44,6 +44,18 @@ public partial class MainWindow : Window
             AddHandler(PointerPressedEvent, OnWindowPointerPressedTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
             UpdateEditorOrientation();
             UpdateWindowTitle();
+
+            try
+            {
+                var iconFile = MainWindowViewModel.IsPersonalEdition ? "icon_personal.ico" : "icon_release.ico";
+                var iconUri = new Uri($"avares://muse dash bms editer/Assets/{iconFile}");
+                if (Avalonia.Platform.AssetLoader.Exists(iconUri))
+                    Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(iconUri));
+            }
+            catch
+            {
+                // 기본 아이콘 폴백
+            }
         }
 
         protected override void OnDataContextChanged(EventArgs e)
