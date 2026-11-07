@@ -153,8 +153,15 @@ dotnet run --project "muse dash bms editer/muse dash bms editer.csproj"
 # 테스트 (200개 넘는 단위·통합 테스트, 화면 없이 창까지 띄워 확인)
 dotnet test "muse dash bms editer.slnx"
 
-# 배포용 exe 하나로 묶기 → publish/win-x64/
-dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProfile=win-x64
+# [추천] 한 번에 빌드 (깃허브 릴리즈용 + 개인용 exe 둘 다 빌드)
+.\build_publish.bat
+
+# 또는 프로필별 개별 배포:
+# 1) 깃허브 공개 릴리즈용 (에셋 제외) → publish/release/
+dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProfile=release
+
+# 2) 개인용 exe (에셋 내장, Git 미포함) → publish/personal/
+dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProfile=personal
 ```
 
 ---
