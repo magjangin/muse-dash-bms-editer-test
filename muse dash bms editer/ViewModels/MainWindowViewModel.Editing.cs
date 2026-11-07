@@ -24,6 +24,7 @@ public sealed partial class MainWindowViewModel
     // "노트 그림 가져오기" 뒤에 호출한다. 이미 읽어 둔 그림을 버리고 폴더에서 다시 읽는다.
     public void ReloadNoteIcons()
     {
+        _noteIconCatalog.Dispose();
         _noteIconCatalog = new NoteIconCatalog(NoteIconCatalog.DefaultFolder, NoteIconImporter.UserFolder);
         RefreshNoteIcons();
     }
@@ -32,6 +33,32 @@ public sealed partial class MainWindowViewModel
     {
         _noteIcons = _noteIconCatalog.Build(Chart.WavTable);
         OnPropertyChanged(nameof(NoteIcons));
+    }
+
+    // 씬/속도 바꾸기에서 새로 만든 #WAV 정의를 중간 히스토리 없이 한 번에 넣는다.
+    // 뒤이어 부르는 NotifyNotesChanged 가 노트 변경과 새 #WAV 정의를 한 묶음으로 기록한다.
+    private void AddCreatedWavsWithoutIntermediateHistory(IReadOnlyList<BmsWavItem> created)
+    {
+        if (created.Count == 0)
+            return;
+
+        var wasRestoring = _isRestoringHistory;
+        _isRestoringHistory = true;
+        try
+        {
+            foreach (var wav in created)
+            {
+                Chart.WavTable[wav.Key] = wav.FilePath;
+                WavList.Add(wav);
+            }
+        }
+        finally
+        {
+            _isRestoringHistory = wasRestoring;
+        }
+
+        InvalidateWavSnapshot();
+        RefreshNoteIcons();
     }
 
     private IReadOnlyList<BmsNote>? _notesCache;

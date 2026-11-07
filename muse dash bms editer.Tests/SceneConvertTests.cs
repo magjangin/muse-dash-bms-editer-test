@@ -182,6 +182,13 @@ public sealed class SceneConvertTests : IDisposable
 
         Assert.Contains("3번 씬 wav폴더\\031001_일반 노트1 지상 노멀_dt1.48.wav", text);
         Assert.Contains("씬 전환 wav 폴더\\000403_3번 씬 전환_dt0.wav", text);
+
+        // 새로 만든 #WAV 정의까지 되돌리기 한 번에 사라지고 원래 노트로 돌아온다.
+        Assert.Equal("되돌리기 (씬 바꾸기)", vm.UndoMenuHeader);
+        vm.UndoCommand.Execute(null);
+        Assert.False(vm.CanUndo);
+        Assert.Single(vm.WavList);
+        Assert.Equal("01", Assert.Single(vm.Chart.Notes).WavKey);
     }
 
     [Fact]

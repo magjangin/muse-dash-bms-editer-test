@@ -64,11 +64,7 @@ public sealed partial class MainWindowViewModel
         if (rekeys.Count == 0)
             return result;
 
-        foreach (var wav in resolver.Created)
-        {
-            Chart.WavTable[wav.Key] = wav.FilePath;
-            WavList.Add(wav);
-        }
+        AddCreatedWavsWithoutIntermediateHistory(resolver.Created);
         _keySoundPlayer.PreloadAsync(resolver.Created.Select(w => w.FilePath).Where(File.Exists).ToArray());
 
         foreach (var (note, key) in rekeys)

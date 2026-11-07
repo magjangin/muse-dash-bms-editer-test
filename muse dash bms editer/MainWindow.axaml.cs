@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.ComponentModel;
 using System;
 using System.Collections.Generic;
@@ -24,21 +24,50 @@ public partial class MainWindow : Window
 {
         // 지금 떠 있는 모드리스 보조 창(검색/통계/키음 팔레트). 종류당 하나만 띄운다.
         private readonly Dictionary<Type, Window> _toolWindows = new();
+        private MainWindowViewModel? _boundVm;
+        private readonly MainWindowViewModel _initialVm;
 
         public MainWindow()
         {
             InitializeComponent();
-            var vm = new MainWindowViewModel();
-            DataContext = vm;
-            vm.ConfirmAsync = message => ConfirmWindow.ShowAsync(this, message, "확인");
-            vm.PropertyChanged += OnViewModelPropertyChanged;
-            vm.ScrollToRatioRequested += ScrollEditorToRatio;
+            _initialVm = new MainWindowViewModel();
+            DataContext = _initialVm;
             Waveform.ScrubRequested += OnWaveformScrubRequested;
             Closing += OnWindowClosing;
-            Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+            Closed += (_, _) =>
+            {
+                foreach (var toolWindow in _toolWindows.Values.ToArray())
+                    toolWindow.Close();
+
+                (DataContext as IDisposable)?.Dispose();
+            };
             AddHandler(PointerPressedEvent, OnWindowPointerPressedTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
             UpdateEditorOrientation();
             UpdateWindowTitle();
+        }
+
+        protected override void OnDataContextChanged(EventArgs e)
+        {
+            base.OnDataContextChanged(e);
+
+            if (_boundVm is not null)
+            {
+                _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
+                _boundVm.ScrollToRatioRequested -= ScrollEditorToRatio;
+
+                if (ReferenceEquals(_boundVm, _initialVm) && !ReferenceEquals(DataContext, _initialVm))
+                    _initialVm.Dispose();
+            }
+
+            _boundVm = DataContext as MainWindowViewModel;
+            if (_boundVm is not null)
+            {
+                _boundVm.ConfirmAsync ??= message => ConfirmWindow.ShowAsync(this, message, "확인");
+                _boundVm.PropertyChanged += OnViewModelPropertyChanged;
+                _boundVm.ScrollToRatioRequested += ScrollEditorToRatio;
+                UpdateEditorOrientation();
+                UpdateWindowTitle();
+            }
         }
 
         // 창을 닫을 때 저장 안 한 작업이 사라지지 않게 막는다.
@@ -536,6 +565,16 @@ public partial class MainWindow : Window
                     vm.ClearNoteSelection();
                     e.Handled = true;
                     return;
+
+                case Key.G:
+                    vm.SnapToGrid = !vm.SnapToGrid;
+                    e.Handled = true;
+                    return;
+
+                case Key.D:
+                    vm.LockVerticalPosition = !vm.LockVerticalPosition;
+                    e.Handled = true;
+                    return;
             }
 
             NoteMoveDirection? direction = e.Key switch
@@ -725,9 +764,12 @@ public partial class MainWindow : Window
                 return;
 
             var position = e.GetPosition(EditorSurface);
-            var ratio = vm.IsHorizontalView
-                ? position.X / timelineLength
-                : 1.0 - (position.Y / timelineLength);
+            var timelineRatio = Math.Clamp(
+                vm.IsHorizontalView ? position.X / timelineLength : 1.0 - (position.Y / timelineLength),
+                0.0,
+                1.0);
+            var audioSeconds = (timelineRatio * vm.OggDurationSeconds) - vm.AudioOffsetSeconds;
+            var ratio = Math.Clamp(audioSeconds / vm.OggDurationSeconds, 0.0, 1.0);
 
             if (isFinal)
                 vm.ScrubCommit(ratio);
@@ -891,7 +933,7 @@ public partial class MainWindow : Window
                 if (EditorScrollViewer.Viewport.Width <= 0)
                     return;
 
-                var cursorX = (vm.PlaybackPositionSeconds / vm.OggDurationSeconds) * timelineLength;
+                var cursorX = vm.PlaybackCursorRatio * timelineLength;
                 var leftMargin = EditorScrollViewer.Viewport.Width * 0.25;
                 var rightMargin = EditorScrollViewer.Viewport.Width * 0.75;
                 var cursorInView = cursorX - offset.X;
@@ -909,7 +951,7 @@ public partial class MainWindow : Window
                 if (EditorScrollViewer.Viewport.Height <= 0)
                     return;
 
-                var cursorY = (1.0 - (vm.PlaybackPositionSeconds / vm.OggDurationSeconds)) * timelineLength;
+                var cursorY = (1.0 - vm.PlaybackCursorRatio) * timelineLength;
                 var topMargin = EditorScrollViewer.Viewport.Height * 0.25;
                 var bottomMargin = EditorScrollViewer.Viewport.Height * 0.75;
                 var cursorInView = cursorY - offset.Y;
@@ -928,7 +970,7 @@ public partial class MainWindow : Window
         {
             var spacingScale = Math.Max(1.0, vm.BeatSplit / (double)Math.Max(1, vm.GridMeasure));
             return vm.OggDurationSeconds > 0
-                ? vm.OggDurationSeconds * vm.RowHeight * vm.VerticalZoom * spacingScale / 2.0
+                ? Math.Max(1.0, vm.OggDurationSeconds * vm.RowHeight * vm.VerticalZoom * spacingScale / 2.0)
                 : vm.MeasureCount * vm.RowHeight * vm.VerticalZoom * spacingScale;
         }
     }

@@ -346,8 +346,13 @@ public sealed class SceneWavResolver
     // "1번 씬" 의 1 만 바꾼다. 10번·11번 씬의 1 은 건드리지 않는다.
     private static string ReplaceSceneNumber(string text, string fromScene, string toScene)
     {
-        var from = int.Parse(fromScene, CultureInfo.InvariantCulture);
-        var to = int.Parse(toScene, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        if (!int.TryParse(fromScene, NumberStyles.Integer, CultureInfo.InvariantCulture, out var from)
+            || !int.TryParse(toScene, NumberStyles.Integer, CultureInfo.InvariantCulture, out var toNum))
+        {
+            return text;
+        }
+
+        var to = toNum.ToString(CultureInfo.InvariantCulture);
         return Regex.Replace(text, $@"(?<!\d)0*{from}(?=\s*번\s*씬)", to);
     }
 

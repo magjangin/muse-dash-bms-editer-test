@@ -50,7 +50,8 @@ public sealed class BmsChart
         HasConditionalBlocks = source.HasConditionalBlocks;
 
         Notes.Clear();
-        Notes.AddRange(source.Notes);
+        foreach (var note in source.Notes)
+            Notes.Add(note.Clone());
 
         PreservedLines.Clear();
         PreservedLines.AddRange(source.PreservedLines);

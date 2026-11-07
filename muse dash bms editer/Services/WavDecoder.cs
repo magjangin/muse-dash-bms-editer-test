@@ -208,6 +208,11 @@ public static class WavDecoder
                 for (var i = 0; i < result.Length; i++)
                     result[i] = BitConverter.ToSingle(data, i * 4);
             }
+            else if (bitsPerSample == 64)
+            {
+                for (var i = 0; i < result.Length; i++)
+                    result[i] = (float)BitConverter.ToDouble(data, i * 8);
+            }
             else
             {
                 return null;

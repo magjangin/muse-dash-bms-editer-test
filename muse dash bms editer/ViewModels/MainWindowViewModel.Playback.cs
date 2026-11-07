@@ -154,6 +154,7 @@ public sealed partial class MainWindowViewModel
     private void StopPlayback(bool resetCursor)
     {
         _playbackTimer.Stop();
+        _playbackSpeedDebounceTimer.Stop();
         _audioPlayer?.Stop();
         _playbackNotes = Array.Empty<BmsNote>();
         IsPlaying = false;

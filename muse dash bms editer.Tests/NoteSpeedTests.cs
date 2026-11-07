@@ -187,8 +187,10 @@ public sealed class NoteSpeedTests : IDisposable
 
         vm.ConvertNotesToSpeed(new[] { note }, 2);
         Assert.NotEqual("01", note.WavKey);
+        Assert.Equal("되돌리기 (속도 바꾸기)", vm.UndoMenuHeader);
 
         vm.UndoCommand.Execute(null);
+        Assert.False(vm.CanUndo);
         Assert.Equal("01", vm.Chart.Notes.Single(n => n.LaneId == "13" && n.Measure == 1).WavKey);
     }
 }

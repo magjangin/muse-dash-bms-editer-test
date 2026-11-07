@@ -41,22 +41,19 @@ public sealed record SpeedChoice(int Number)
 // 대상 노트 필터는 세 그룹(선택 상태 / 노트 종류 / 표시 여부)으로 나뉘며,
 // 노트는 각 그룹에서 최소 하나씩 일치해야 결과에 포함된다.
 // 그룹 안의 두 항목을 모두 끄면 그 그룹은 아무것도 통과시키지 않는다.
-public sealed partial class NoteSearchViewModel : ObservableObject
+public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
 {
-    private readonly MainWindowViewModel _owner;
-
     // BmsParser가 2자리/3자리 키음 배치를 모두 지원하므로,
     // 이 차트가 실제로 쓰는 자릿수에 맞춰 번호 범위의 기본값과 최댓값을 정한다.
     //
     // **매번 다시 본다.** 예전에는 창을 만들 때 한 번 정하고 굳혀서, 창을 띄워둔 채
     // 3자리 차트를 열면 번호 범위가 2자리에 머물러 3자리 키음을 아예 찾을 수 없었다.
-    private int KeyWidth => _owner.WavKeyWidth;
+    private int KeyWidth => Owner.WavKeyWidth;
 
     private int MaxKeyValue => WavKey.MaxValue(KeyWidth);
 
-    public NoteSearchViewModel(MainWindowViewModel owner)
+    public NoteSearchViewModel(MainWindowViewModel owner) : base(owner)
     {
-        _owner = owner;
         foreach (var lane in owner.Chart.Lanes)
         {
             Lanes.Add(new LaneFilterItem(lane));
@@ -66,32 +63,63 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         _wavKeyTo = new string('Z', KeyWidth);
         _replacementWavKey = ToBase36(1);
 
+        SceneChoices = BuildSceneChoices();
+        _targetScene = SceneChoices[0];
+        _targetSpeed = SpeedChoices[0];
+    }
+
+    private IReadOnlyList<SceneChoice> BuildSceneChoices()
+    {
         // 게임에 있는 씬에, 이 차트의 키음 표에 있는 씬을 더한다.
         var scenes = new SortedSet<int>(SceneUid.KnownScenes);
-        foreach (var wav in owner.WavList)
+        foreach (var wav in Owner.WavList)
         {
             if (SceneUid.SceneOf(SceneWavResolver.TextOf(wav)) is { } zz)
                 scenes.Add(int.Parse(zz));
         }
-        SceneChoices = scenes.Select(n => new SceneChoice(n)).ToArray();
-        _targetScene = SceneChoices[0];
-        _targetSpeed = SpeedChoices[0];
+
+        return scenes.Select(n => new SceneChoice(n)).ToArray();
+    }
+
+    protected override void OnOwnerPropertyChanged(string? propertyName)
+    {
+        if (propertyName is nameof(MainWindowViewModel.Notes) or nameof(MainWindowViewModel.HoldLinks))
+        {
+            OnPropertyChanged(nameof(AreNoteTypeFiltersUsable));
+            OnPropertyChanged(nameof(NoteTypeFilterHint));
+
+            if (WavKeyTo == "ZZ" && KeyWidth == 3)
+                WavKeyTo = "ZZZ";
+            else if (WavKeyTo == "ZZZ" && KeyWidth == 2)
+                WavKeyTo = "ZZ";
+        }
+    }
+
+    protected override void OnWavListChanged()
+    {
+        var previousNumber = TargetScene?.Number;
+        SceneChoices = BuildSceneChoices();
+        OnPropertyChanged(nameof(SceneChoices));
+        TargetScene = SceneChoices.FirstOrDefault(c => c.Number == previousNumber) ?? SceneChoices.FirstOrDefault();
+
+        if (WavKeyTo == "ZZ" && KeyWidth == 3)
+            WavKeyTo = "ZZZ";
+        else if (WavKeyTo == "ZZZ" && KeyWidth == 2)
+            WavKeyTo = "ZZ";
     }
 
     public ObservableCollection<LaneFilterItem> Lanes { get; } = new();
 
     // "롱"·"숨기기" 필터를 쓸 수 있는지.
     //
-    // BmsParser 는 편집 대상인 건반 채널(11~18)만 노트로 만들고 전부 Normal 로 둔다.
-    // 롱노트(51~59)·숨김(31~39) 채널은 원문 보존으로 빠지므로, 이 두 필터는
-    // 어떤 노트에도 해당되지 않는다. 눌러도 아무 일이 없는 버튼을 켜 두면
-    // "조건을 잘못 넣었나" 하고 사용자만 헤매므로, 해당되는 노트가 생기기 전까지는 잠근다.
+    // BmsParser 는 건반 채널 노트를 Normal 로 두지만, 뮤즈 대시 프로파일의 홀드·샌드백 짝
+    // (Owner.HoldLinks / Owner.IsHoldNote)이 잡히면 롱노트 필터로 거를 수 있다.
     public bool AreNoteTypeFiltersUsable =>
-        _owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
+        Owner.HoldLinks.Count > 0 || Owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
 
     public string NoteTypeFilterHint => AreNoteTypeFiltersUsable
-        ? "노트 종류로 거릅니다"
-        : "이 에디터는 아직 롱노트·숨김 노트를 편집 대상으로 읽지 않습니다. 해당되는 노트가 없어 잠겨 있습니다";
+        ? "노트 종류(일반 / 홀드·샌드백 롱노트)로 거릅니다"
+        : "차트에 홀드·샌드백 짝이나 특수 노트가 없어 잠겨 있습니다";
 
     // 대상 노트 - 선택 상태
     [ObservableProperty] private bool _includeSelected = true;
@@ -117,7 +145,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     [ObservableProperty] private int _copyMeasureOffset = 1;
 
     // 구간 씬 바꾸기
-    public IReadOnlyList<SceneChoice> SceneChoices { get; }
+    public IReadOnlyList<SceneChoice> SceneChoices { get; private set; }
 
     [ObservableProperty] private SceneChoice? _targetScene;
     [ObservableProperty] private bool _addSceneStartToggle = true;
@@ -150,10 +178,10 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         if (keyLow > keyHigh)
             (keyLow, keyHigh) = (keyHigh, keyLow);
 
-        var selected = new HashSet<BmsNote>(_owner.SelectedNotes);
+        var selected = new HashSet<BmsNote>(Owner.SelectedNotes);
         var matches = new List<BmsNote>();
 
-        foreach (var note in _owner.Chart.Notes)
+        foreach (var note in Owner.Chart.Notes)
         {
             if (!laneIds.Contains(note.LaneId))
                 continue;
@@ -168,7 +196,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             if (!(isSelected ? IncludeSelected : IncludeUnselected))
                 continue;
 
-            var isLong = note.Type is NoteType.LongStart or NoteType.LongEnd;
+            var isLong = Owner.IsHoldNote(note) || note.Type is NoteType.LongStart or NoteType.LongEnd;
             if (!(isLong ? IncludeLong : IncludeNormal))
                 continue;
 
@@ -186,7 +214,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     private void SelectMatches()
     {
         var matches = FindMatches();
-        _owner.SetNoteSelection(matches, NoteSelectionSource.Search);
+        Owner.SetNoteSelection(matches, NoteSelectionSource.Search);
         StatusMessage = matches.Count == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{matches.Count}개를 선택했습니다.";
@@ -196,7 +224,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     private void DeleteMatches()
     {
         var matches = FindMatches();
-        var removed = _owner.DeleteNotes(matches);
+        var removed = Owner.DeleteNotes(matches);
         StatusMessage = removed == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{removed}개를 삭제했습니다.";
@@ -220,7 +248,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var result = _owner.CopyNotesByMeasureOffset(matches, CopyMeasureOffset);
+        var result = Owner.CopyNotesByMeasureOffset(matches, CopyMeasureOffset);
 
         var skipped = new List<string>();
         if (result.Blocked > 0)
@@ -240,7 +268,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     [RelayCommand]
     private void ClearSelection()
     {
-        _owner.ClearNoteSelection();
+        Owner.ClearNoteSelection();
         StatusMessage = "선택을 해제했습니다.";
     }
 
@@ -255,7 +283,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
 
         var normalizedKey = ToBase36(parsed);
         var matches = FindMatches();
-        var changed = _owner.ReplaceWavKey(matches, normalizedKey);
+        var changed = Owner.ReplaceWavKey(matches, normalizedKey);
         ReplacementWavKey = normalizedKey;
 
         if (matches.Count == 0)
@@ -264,7 +292,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var unregistered = _owner.Chart.WavTable.ContainsKey(normalizedKey)
+        var unregistered = Owner.Chart.WavTable.ContainsKey(normalizedKey)
             ? string.Empty
             : $" (경고: #WAV{normalizedKey}가 등록돼 있지 않습니다)";
 
@@ -284,7 +312,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var result = _owner.ConvertSectionToScene(
+        var result = Owner.ConvertSectionToScene(
             FindMatches(), MeasureFrom, MeasureTo, scene.Number, AddSceneStartToggle, AddSceneReturnToggle);
         StatusMessage = DescribeSceneConvert(result, scene);
     }
@@ -306,7 +334,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        StatusMessage = DescribeSpeedConvert(_owner.ConvertNotesToSpeed(matches, speed.Number), speed);
+        StatusMessage = DescribeSpeedConvert(Owner.ConvertNotesToSpeed(matches, speed.Number), speed);
     }
 
     private static string DescribeSpeedConvert(SpeedConvertResult result, SpeedChoice speed)

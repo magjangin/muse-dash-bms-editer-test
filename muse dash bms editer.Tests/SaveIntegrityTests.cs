@@ -396,4 +396,21 @@ public sealed class SaveIntegrityTests : IDisposable
 
         Assert.Contains(@"#WAV01 sounds\kick.wav", text);
     }
+
+    [Fact]
+    public void 같은_마디_같은_채널_같은_위치에_겹친_노트는_여러_줄로_나누어_저장되어_소실되지_않는다()
+    {
+        var path = WriteChart("#TITLE t\r\n#BPM 120\r\n#WAV01 a.wav\r\n#WAV02 b.wav\r\n#00113:01000000\r\n#00113:02000000\r\n");
+
+        var parsed = BmsParser.Parse(path);
+        Assert.Equal(2, parsed.Chart.Notes.Count);
+
+        var text = BmsWriter.Write(parsed.Chart, "t", "", "", 120, 0, 2, "", parsed.WavItems, path);
+        var roundTripPath = WriteChart(text);
+        var reparsed = BmsParser.Parse(roundTripPath);
+
+        Assert.Equal(2, reparsed.Chart.Notes.Count);
+        Assert.Contains(reparsed.Chart.Notes, n => n.Measure == 1 && n.LaneId == "13" && n.WavKey == "01");
+        Assert.Contains(reparsed.Chart.Notes, n => n.Measure == 1 && n.LaneId == "13" && n.WavKey == "02");
+    }
 }

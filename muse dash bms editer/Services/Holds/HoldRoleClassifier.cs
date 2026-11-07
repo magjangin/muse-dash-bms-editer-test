@@ -80,7 +80,7 @@ internal static class HoldRoleClassifier
                 var name = FileNameWithoutExtension(text).Trim();
                 var label = HoldRole.None;
 
-                foreach (var suffix in role.StripSuffixes)
+                foreach (var suffix in role.StripSuffixes.OrderByDescending(s => s.Length))
                 {
                     if (suffix.Length == 0 || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                         continue;

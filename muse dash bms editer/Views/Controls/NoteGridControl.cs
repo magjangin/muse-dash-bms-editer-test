@@ -186,9 +186,9 @@ public sealed class NoteGridControl : TimelineControlBase
     // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
     private static readonly Pen NoteOutlinePen = new(Brushes.Black, 1);
 
-    private static readonly IBrush ScratchNoteBrush = new SolidColorBrush(Color.FromRgb(230, 40, 40));
-    private static readonly IBrush BlackKeyNoteBrush = new SolidColorBrush(Color.FromRgb(40, 140, 230));
-    private static readonly IBrush WhiteKeyNoteBrush = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+    private static readonly IBrush ScratchNoteBrush = new ImmutableSolidColorBrush(Color.FromRgb(230, 40, 40));
+    private static readonly IBrush BlackKeyNoteBrush = new ImmutableSolidColorBrush(Color.FromRgb(40, 140, 230));
+    private static readonly IBrush WhiteKeyNoteBrush = new ImmutableSolidColorBrush(Color.FromRgb(240, 240, 240));
 
     // 노트 채움색도 세 가지뿐이라 나눠 쓴다. 예전에는 노트마다 새로 만들었다.
     private static IBrush GetNoteBrush(string laneId) => laneId switch
@@ -199,13 +199,13 @@ public sealed class NoteGridControl : TimelineControlBase
     };
 
     // 격자 펜과 배경도 매 프레임 새로 만들 이유가 없다.
-    private static readonly IBrush GridBackgroundBrush = new SolidColorBrush(Color.FromArgb(40, 30, 60, 120));
+    private static readonly IBrush GridBackgroundBrush = new ImmutableSolidColorBrush(Color.FromArgb(40, 30, 60, 120));
     private static readonly IPen LanePen = new Pen(Brushes.DimGray, 1);
-    private static readonly IPen SubBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
-    private static readonly IPen BeatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
+    private static readonly IPen SubBeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
+    private static readonly IPen BeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
     private static readonly IPen MeasurePen = new Pen(Brushes.White, 1.5);
-    private static readonly IBrush LaneHeaderBrush = new SolidColorBrush(Color.FromArgb(140, 200, 200, 200));
-    private static readonly IBrush DragFillBrush = new SolidColorBrush(Color.FromArgb(60, 255, 220, 60));
+    private static readonly IBrush LaneHeaderBrush = new ImmutableSolidColorBrush(Color.FromArgb(140, 200, 200, 200));
+    private static readonly IBrush DragFillBrush = new ImmutableSolidColorBrush(Color.FromArgb(60, 255, 220, 60));
     private static readonly IPen DragOutlinePen = new Pen(Brushes.Yellow, 1);
     private static readonly Typeface LaneHeaderTypeface = new("Inter, Arial, sans-serif");
 
@@ -708,6 +708,8 @@ public sealed class NoteGridControl : TimelineControlBase
 
         var laneThickness = LaneWidth * HorizontalZoom;
         var timelineLength = GetTimelineHeight();
+        if (timelineLength <= 0)
+            return;
 
         var thicknessPos = IsHorizontalView ? point.Position.Y : point.Position.X;
         var clickedLaneIndex = (int)(thicknessPos / laneThickness);
@@ -801,6 +803,8 @@ public sealed class NoteGridControl : TimelineControlBase
 
         var laneThickness = LaneWidth * HorizontalZoom;
         var timelineLength = GetTimelineHeight();
+        if (timelineLength <= 0)
+            return;
         var selectionRect = NormalizedRect(dragStart, dragEnd).Inflate(2);
 
         var selected = new List<BmsNote>();

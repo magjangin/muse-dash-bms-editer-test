@@ -25,6 +25,17 @@ public sealed class BmsNote
     public NoteType Type { get; set; } = NoteType.Normal;
     public int BranchId { get; set; } = 0;
     public int SourceLineOrder { get; set; } = 0;
+
+    public BmsNote Clone() => new()
+    {
+        Measure = Measure,
+        LaneId = LaneId,
+        Position = Position,
+        WavKey = WavKey,
+        Type = Type,
+        BranchId = BranchId,
+        SourceLineOrder = SourceLineOrder,
+    };
 }
 
 public record NotePlacementArgs(string LaneId, int Measure, double Position);

@@ -63,7 +63,7 @@ public sealed class GameProfileCatalog
         foreach (var (name, json) in ReadEmbedded())
             TryAdd(name, json);
 
-        if (!string.IsNullOrEmpty(overrideDirectory) && Directory.Exists(overrideDirectory))
+            if (!string.IsNullOrEmpty(overrideDirectory) && Directory.Exists(overrideDirectory))
         {
             foreach (var file in Directory.EnumerateFiles(overrideDirectory, "*.json").OrderBy(f => f, StringComparer.Ordinal))
             {
@@ -71,7 +71,7 @@ public sealed class GameProfileCatalog
                 {
                     TryAdd(file, File.ReadAllText(file, Encoding.UTF8));
                 }
-                catch (IOException ex)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     errors.Add($"{file}: {ex.Message}");
                 }
@@ -138,6 +138,18 @@ public sealed class GameProfileCatalog
                     throw new FormatException($"{where}: FileNameKeyword 는 headKeywords 와 tailKeywords 가 모두 있어야 합니다.");
                 case HoldRoleSource.FileNameUid when profile.UidTable is null:
                     throw new FormatException($"{where}: FileNameUid 는 프로파일에 uidTable 이 있어야 합니다.");
+                case HoldRoleSource.FileNameUid:
+                    try
+                    {
+                        _ = new System.Text.RegularExpressions.Regex(
+                            profile.UidTable!.Pattern,
+                            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        throw new FormatException($"{where}: uidTable.pattern 정규식이 올바르지 않습니다: {ex.Message}", ex);
+                    }
+                    break;
                 case HoldRoleSource.FileNameBase when role.BaseNames.Count == 0:
                     throw new FormatException($"{where}: FileNameBase 는 baseNames 가 있어야 합니다.");
             }

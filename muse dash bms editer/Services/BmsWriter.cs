@@ -112,33 +112,57 @@ public static class BmsWriter
         {
             var notes = group.OrderBy(n => n.Position).ToList();
             var resolution = ComputeResolution(notes);
-            var slots = new string[resolution];
-            for (var i = 0; i < resolution; i++)
-                slots[i] = emptySlot;
+            var layers = new List<string[]>();
 
             foreach (var note in notes)
             {
                 var index = Math.Clamp((int)Math.Round(note.Position * resolution), 0, resolution - 1);
                 var code = note.WavKey;
-                slots[index] = code.Length >= keyWidth ? code.Substring(0, keyWidth) : code.PadLeft(keyWidth, '0');
+                var formatted = code.Length >= keyWidth ? code.Substring(0, keyWidth) : code.PadLeft(keyWidth, '0');
+
+                string[]? targetSlots = null;
+                foreach (var candidate in layers)
+                {
+                    if (candidate[index] == emptySlot)
+                    {
+                        targetSlots = candidate;
+                        break;
+                    }
+                }
+
+                if (targetSlots is null)
+                {
+                    targetSlots = new string[resolution];
+                    for (var i = 0; i < resolution; i++)
+                        targetSlots[i] = emptySlot;
+                    layers.Add(targetSlots);
+                }
+
+                targetSlots[index] = formatted;
             }
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
-            var text = $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}";
+            var branchOrder = group.Key.BranchId > 0
+                ? BranchNoteOrder(notes, group.Key.BranchId, chart.PreservedLines)
+                : 0;
+            var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
 
-            if (group.Key.BranchId > 0)
+            foreach (var slots in layers)
             {
-                conditionalLines.Add((BranchNoteOrder(notes, group.Key.BranchId, chart.PreservedLines), group.Key.Measure, text));
-                continue;
+                var text = $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}";
+                if (group.Key.BranchId > 0)
+                    conditionalLines.Add((branchOrder, group.Key.Measure, text));
+                else
+                    plainLines.Add((group.Key.Measure, lIndex, text));
             }
 
-            var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
-            plainLines.Add((group.Key.Measure, lIndex, text));
-
-            foreach (var note in notes)
+            if (group.Key.BranchId == 0)
             {
-                if (note.SourceLineOrder > 0)
-                    plainSourceOrders.Add(note.SourceLineOrder);
+                foreach (var note in notes)
+                {
+                    if (note.SourceLineOrder > 0)
+                        plainSourceOrders.Add(note.SourceLineOrder);
+                }
             }
         }
 

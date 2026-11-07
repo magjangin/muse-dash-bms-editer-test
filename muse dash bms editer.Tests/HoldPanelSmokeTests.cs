@@ -17,13 +17,31 @@ namespace bms_editer.Tests;
 // 뷰모델만 보면 "진단 1건"까지는 통과하는데, 바인딩이 빠져 화면에 아무것도 안 뜨는 경우를
 // 못 잡는다. 이 프로젝트는 그걸로 두 번 당했다(WindowSmokeTests 머리말 참고).
 // 그래서 파일을 실제로 읽어 창을 띄우고 목록을 확인한다.
-public sealed class HoldPanelSmokeTests
+public sealed class HoldPanelSmokeTests : IDisposable
 {
+    private readonly System.Collections.Generic.List<string> _tempDirectories = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
     // 홀드 시작 3개에 끝 2개. 마지막 시작은 짝이 없어 🔴 로 잡혀야 한다.
-    private static MainWindowViewModel LoadChartWithBrokenHold()
+    private MainWindowViewModel LoadChartWithBrokenHold()
     {
         var directory = Path.Combine(Path.GetTempPath(), "bms-editer-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(directory);
+        _tempDirectories.Add(directory);
 
         var path = Path.Combine(directory, "chart.bms");
         File.WriteAllText(
@@ -85,6 +103,7 @@ public sealed class HoldPanelSmokeTests
     {
         var directory = Path.Combine(Path.GetTempPath(), "bms-editer-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(directory);
+        _tempDirectories.Add(directory);
 
         var path = Path.Combine(directory, "chart.bms");
         File.WriteAllText(

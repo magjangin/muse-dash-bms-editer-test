@@ -74,12 +74,12 @@ public sealed partial class OggAudioPlayer : IDisposable
         format.BlockAlign = (short)(format.Channels * format.BitsPerSample / 8);
         format.AvgBytesPerSec = format.SamplesPerSec * format.BlockAlign;
 
-        ThrowIfFailed(WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0));
-
         var startByte = SecondsToByteOffset(startSeconds, format.BlockAlign);
         var byteCount = _pcmBytes.Length - startByte;
         if (byteCount <= 0)
             return;
+
+        ThrowIfFailed(WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0));
 
         _dataHandle = GCHandle.Alloc(_pcmBytes, GCHandleType.Pinned);
         _header = new WaveHeader

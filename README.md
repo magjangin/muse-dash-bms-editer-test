@@ -9,7 +9,7 @@
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)
 ![Avalonia 12](https://img.shields.io/badge/Avalonia_UI-12-8B44AC)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D4)
-![version](https://img.shields.io/badge/version-0.1.3-lightgrey)
+![version](https://img.shields.io/badge/version-0.1.4-lightgrey)
 ![status](https://img.shields.io/badge/status-testing-orange)
 
 > [!NOTE]
@@ -130,7 +130,8 @@
 | `Space` | 재생 / 정지 |
 | `↑` `↓` `←` `→` | 선택한 노트 이동 (시간·레인) |
 | `Delete` | 선택한 노트 삭제 |
-| `Esc` | 선택 해제 |
+| `G` / `D` | 격자에 맞추기 켜기/끄기 / 수직위치 고정 켜기/끄기 |
+| `Esc` | 선택 해제 (보조 창에서는 그 창 닫기) |
 
 마우스 조작·보조 창까지 전부는 📖 [사용 설명서](docs/guides/editor_manual.md), 막히면 🧯 [문제 해결](docs/guides/troubleshooting.md),
 게임에 넣기 전에는 ✅ [점검표](docs/guides/release_checklist.md)를 보세요.
@@ -164,7 +165,7 @@ dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProf
 [실사용 점검](docs/issues/usability_review.md) 문서에 있습니다.
 
 - **아직 시간이 오래 걸립니다.** 뮤즈 대시 340노트 채보에 약 4시간이 걸렸고, 절반 이상이 "맞게 찍었는지 확인하는 데" 들었습니다.
-  이후 추가한 다운믹스·짝 검사·되돌리기로 얼마나 줄었는지는 아직 다시 재 보지 않았습니다.
+  이후 다운믹스·짝 검사·되돌리기·노트 그림이 들어간 뒤에는 479노트 채보에 약 2시간이 걸렸습니다(2026-10-19 실측 → [채보 작성 시간](docs/issues/authoring_time.md)).
 - **노트 그림은 배포본에 들어 있지 않습니다.** 게임에서 뽑은 그림이라 저장소와 배포본에 넣지 않았고, 없으면 단색 동그라미로 보입니다.
   그림은 직접 만들어야 합니다: [Spine Support Tool](https://github.com/magjangin/spine-support-tool)로 게임 번들에서 노트·보스를 렌더한 뒤,
   에디터의 **편집 → 노트 그림 가져오기...** 에서 그 렌더 폴더를 고르면 `%LOCALAPPDATA%\muse dash bms editer\note_icons` 에 자동으로 만들어집니다.

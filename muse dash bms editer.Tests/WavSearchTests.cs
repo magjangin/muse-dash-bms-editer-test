@@ -68,4 +68,8 @@ public sealed class WavSearchTests
     [Fact]
     public void Matches_FindsByKey()
         => Assert.True(WavSearch.Matches(Item("0A", "x.wav"), "0a"));
+
+    [Fact]
+    public void Matches_FindsByDisplayNameScenePrefix()
+        => Assert.True(WavSearch.Matches(Item("01", "010201_홀드 지상 끝 노트_dt1.47.wav"), "1번 씬 홀드"));
 }

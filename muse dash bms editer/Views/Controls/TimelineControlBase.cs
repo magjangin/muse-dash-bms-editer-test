@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.VisualTree;
 using bms_editer.Services;
 
@@ -282,26 +283,33 @@ public abstract class TimelineControlBase : Control
     protected double ToTimelinePosition(double ratio, double timelineLength) =>
         IsHorizontalView ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
 
+    private static readonly IPen PlaybackCursorGlowPen =
+        new Pen(new ImmutableSolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
+    private static readonly IPen PlaybackCursorPen =
+        new Pen(new ImmutableSolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
+    private static readonly IBrush GridSyncFlashFillBrush =
+        new ImmutableSolidColorBrush(Color.FromArgb(36, 80, 255, 140));
+    private static readonly IPen GridSyncFlashOutlinePen =
+        new Pen(new ImmutableSolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2);
+
     protected void DrawPlaybackCursor(DrawingContext context, double width, double height)
     {
         if (!IsPlaybackCursorVisible || DurationSeconds <= 0)
             return;
 
         var ratio = Math.Clamp(AudioRatio(PlaybackPositionSeconds), 0, 1);
-        var glowPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
-        var cursorPen = new Pen(new SolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
 
         if (IsHorizontalView)
         {
             var x = ratio * width;
-            context.DrawLine(glowPen, new Point(x, 0), new Point(x, height));
-            context.DrawLine(cursorPen, new Point(x, 0), new Point(x, height));
+            context.DrawLine(PlaybackCursorGlowPen, new Point(x, 0), new Point(x, height));
+            context.DrawLine(PlaybackCursorPen, new Point(x, 0), new Point(x, height));
         }
         else
         {
             var y = (1.0 - ratio) * height;
-            context.DrawLine(glowPen, new Point(0, y), new Point(width, y));
-            context.DrawLine(cursorPen, new Point(0, y), new Point(width, y));
+            context.DrawLine(PlaybackCursorGlowPen, new Point(0, y), new Point(width, y));
+            context.DrawLine(PlaybackCursorPen, new Point(0, y), new Point(width, y));
         }
     }
 
@@ -310,7 +318,7 @@ public abstract class TimelineControlBase : Control
         if (!IsGridSyncFlashVisible)
             return;
 
-        context.FillRectangle(new SolidColorBrush(Color.FromArgb(36, 80, 255, 140)), new Rect(0, 0, width, height));
-        context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2), new Rect(1, 1, width - 2, height - 2));
+        context.FillRectangle(GridSyncFlashFillBrush, new Rect(0, 0, width, height));
+        context.DrawRectangle(null, GridSyncFlashOutlinePen, new Rect(1, 1, width - 2, height - 2));
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using bms_editer.Models;
@@ -160,6 +160,8 @@ public static class DownmixEngine
             switch (note.Kind)
             {
                 case KeyboardNoteKind.LongStart:
+                    if (openHold.TryGetValue(note.Channel, out var pendingStart))
+                        items.Add(new DownmixItem(LaneFor(pendingStart.Channel), pendingStart, null, order++));
                     openHold[note.Channel] = note;
                     break;
 
@@ -182,6 +184,9 @@ public static class DownmixEngine
                     break;
             }
         }
+
+        foreach (var orphanStart in openHold.Values.OrderBy(n => n.Time).ThenBy(n => n.Channel, StringComparer.Ordinal))
+            items.Add(new DownmixItem(LaneFor(orphanStart.Channel), orphanStart, null, order++));
 
         return items;
     }

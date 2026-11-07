@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CommunityToolkit.Mvvm.Input;
@@ -61,7 +61,7 @@ public sealed partial class MainWindowViewModel
     private void ResetEditHistory()
     {
         InvalidateWavSnapshot();
-        _history.Reset(TakeSnapshot("불러오기"));
+        _history.Reset(TakeSnapshot("불러오기", includeDocument: true));
         NotifyHistoryChanged();
     }
 
@@ -71,7 +71,7 @@ public sealed partial class MainWindowViewModel
         if (_isRestoringHistory)
             return;
 
-        _history.Record(TakeSnapshot(label));
+        _history.Record(TakeSnapshot(label, includeDocument: label == "건반 BMS 가져오기"));
         NotifyHistoryChanged();
     }
 
@@ -122,17 +122,22 @@ public sealed partial class MainWindowViewModel
         _history.UpdateBaselineSelection(CurrentSelectionIndices(), SelectedWavItem?.Key);
     }
 
-    private EditSnapshot TakeSnapshot(string label)
+    private EditSnapshot TakeSnapshot(string label, bool includeDocument = false)
     {
         var selected = CurrentSelectionIndices();
 
         _wavSnapshotCache ??= WavList.Select(CloneWav).ToArray();
         _wavTableSnapshotCache ??= new Dictionary<string, string>(Chart.WavTable);
 
-        var document = new BmsChart();
-        document.ReplaceContentWith(Chart);
-        document.Notes.Clear();
-        CopyHeaderTo(document.Header);
+        BmsChart? document = null;
+        if (includeDocument)
+        {
+            document = new BmsChart();
+            document.ReplaceContentWith(Chart);
+            document.Notes.Clear();
+            CopyHeaderTo(document.Header);
+        }
+
         return new EditSnapshot(
             Chart.Notes.Select(CloneNote).ToArray(),
             _wavSnapshotCache,
@@ -165,6 +170,7 @@ public sealed partial class MainWindowViewModel
 
             WavList.ReplaceAll(snapshot.Wavs.Select(CloneWav));
             InvalidateWavSnapshot();
+            RefreshNoteIcons();
 
             // 키음 선택은 참조가 아니라 번호로 되살린다. 목록이 통째로 바뀌었으므로
             // 예전 항목을 그대로 두면 어느 목록에도 없는 것을 가리킨다.
@@ -202,16 +208,7 @@ public sealed partial class MainWindowViewModel
         RedoCommand.NotifyCanExecuteChanged();
     }
 
-    private static BmsNote CloneNote(BmsNote note) => new()
-    {
-        Measure = note.Measure,
-        LaneId = note.LaneId,
-        Position = note.Position,
-        WavKey = note.WavKey,
-        Type = note.Type,
-        BranchId = note.BranchId,
-        SourceLineOrder = note.SourceLineOrder,
-    };
+    private static BmsNote CloneNote(BmsNote note) => note.Clone();
 
     private static BmsWavItem CloneWav(BmsWavItem item) => new()
     {
