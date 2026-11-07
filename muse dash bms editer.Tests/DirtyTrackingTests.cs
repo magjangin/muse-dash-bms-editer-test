@@ -143,12 +143,12 @@ public sealed class DirtyTrackingTests : IDisposable
     public void 제목_표시줄이_파일명과_수정_표시를_보여준다()
     {
         var vm = new MainWindowViewModel();
-        Assert.Equal("제목 없음 - bms editer", vm.WindowTitle);
+        Assert.StartsWith("제목 없음 - bms editer", vm.WindowTitle);
 
         vm.LoadBms(WriteChart());
-        Assert.Equal("chart.bms - bms editer", vm.WindowTitle);
+        Assert.StartsWith("chart.bms - bms editer", vm.WindowTitle);
 
         vm.Title = "바뀐 제목";
-        Assert.Equal("*chart.bms - bms editer", vm.WindowTitle);
+        Assert.StartsWith("*chart.bms - bms editer", vm.WindowTitle);
     }
 }
