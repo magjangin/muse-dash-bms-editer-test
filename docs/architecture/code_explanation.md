@@ -141,7 +141,7 @@
 | 파일명 | 역할 및 렌더링 메커니즘 |
 | :--- | :--- |
 | **[MainWindow.axaml / .cs](../../muse%20dash%20bms%20editer/MainWindow.axaml)** | 최상위 창입니다. 메뉴 · 도구 모음 · 격자와 파형 · 오른쪽 패널(홀드 검사기, 영상, 헤더, 격자 설정, 음원 오프셋, 키음 목록) · 상태줄로 이뤄집니다. 창 전체 단축키(Ctrl+N/O/S/Z/Y, Space, Delete, 방향키, Esc), 저장 안 한 채 닫을 때의 3지선다, 보조 창을 종류당 하나만 띄우기, 가운데 버튼 스크럽, 재생 커서 따라가기를 처리합니다. |
-| **[TimelineControlBase.cs](../../muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs)** | 격자와 파형이 같이 쓰는 바탕입니다. 줌 · BPM · 시간축 속성, 타임라인 길이 식(`GetTimelineHeight`), 격자선 열거(`EnumerateGridLines`), 음원 오프셋을 반영한 비율 변환(`AudioRatio`), 재생 커서와 BPM 변경 번쩍임을 그립니다. → [grid_specification.md](../specifications/grid_specification.md) |
+| **[TimelineControlBase.cs](../../muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs)** | 격자와 파형이 같이 쓰는 바탕입니다. 줌 · BPM · 시간축 속성, 타임라인 길이 식(`ComputeTimelineLength` — 메인 창도 이것을 부릅니다), 격자선 열거(`EnumerateGridLines`), 음원 오프셋을 반영한 비율 변환(`AudioRatio`), 재생 커서와 BPM 변경 번쩍임을 그립니다. → [grid_specification.md](../specifications/grid_specification.md) |
 | **[NoteGridControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/NoteGridControl.cs)** | 격자판과 노트를 그립니다. 홀드 · 샌드백 몸통(노랑 · 분홍)을 노트보다 먼저 그리고, 짝이 어긋난 노트에 주황 점선을 두릅니다. 좌클릭 배치(격자 스냅 on/off), 우클릭 삭제, 드래그 선택(Ctrl/Shift 로 더하기)을 받습니다. 화면 밖을 건너뛰는 처리 없이 타임라인 전체를 그립니다. |
 | **[OggWaveformControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/OggWaveformControl.cs)** | 음원 파형 막대와 온셋 마커, 마디 번호 · 초 라벨(`#003 (5.7600s)`)을 그립니다. 좌클릭 · 드래그로 재생 위치를 옮깁니다. |
 | **[VideoPreviewControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/VideoPreviewControl.cs)** | WebView2 창을 격자 옆에 붙여 영상을 띄우고, 가상 호스트로 로컬 파일을 열며, 재생 위치를 0.2초마다 맞춥니다. → [video_ogg_principles.md](video_ogg_principles.md) |

@@ -966,11 +966,8 @@ public partial class MainWindow : Window
             }
         }
 
-        private static double GetTimelineLength(MainWindowViewModel vm)
-        {
-            var spacingScale = Math.Max(1.0, vm.BeatSplit / (double)Math.Max(1, vm.GridMeasure));
-            return vm.OggDurationSeconds > 0
-                ? Math.Max(1.0, vm.OggDurationSeconds * vm.RowHeight * vm.VerticalZoom * spacingScale / 2.0)
-                : vm.MeasureCount * vm.RowHeight * vm.VerticalZoom * spacingScale;
-        }
+        // 격자·파형 컨트롤과 같은 규칙을 그대로 부른다. 식을 여기 따로 두지 않는다.
+        private static double GetTimelineLength(MainWindowViewModel vm) =>
+            TimelineControlBase.ComputeTimelineLength(
+                vm.OggDurationSeconds, vm.MeasureCount, vm.RowHeight, vm.VerticalZoom, vm.BeatSplit, vm.GridMeasure);
     }

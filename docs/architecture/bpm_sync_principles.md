@@ -22,14 +22,15 @@
 그래서 BPM 을 바꿔도 파형이 늘어나거나 줄지 않습니다.
 
 ```csharp
-// TimelineControlBase.GetTimelineHeight
-protected double GetTimelineHeight()
+// TimelineControlBase.ComputeTimelineLength (컨트롤의 GetTimelineHeight 와 MainWindow 가 함께 부른다)
+public static double ComputeTimelineLength(
+    double durationSeconds, int measureCount, double rowHeight, double verticalZoom, int beatSplit, int gridMeasure)
 {
-    var spacingScale = GetGridSpacingScale();   // max(1, BeatSplit / GridMeasure)
-    if (DurationSeconds > 0)
-        return Math.Max(1.0, DurationSeconds * RowHeight * VerticalZoom * spacingScale / 2.0);
+    var spacingScale = GridSpacingScale(beatSplit, gridMeasure);   // max(1, BeatSplit / GridMeasure)
+    if (durationSeconds > 0)
+        return Math.Max(1.0, durationSeconds * rowHeight * verticalZoom * spacingScale / 2.0);
 
-    return MeasureCount * RowHeight * VerticalZoom * spacingScale;   // 음원이 없을 때는 마디 수 기준
+    return measureCount * rowHeight * verticalZoom * spacingScale;   // 음원이 없을 때는 마디 수 기준
 }
 ```
 

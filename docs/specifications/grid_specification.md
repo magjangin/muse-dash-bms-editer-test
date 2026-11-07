@@ -182,20 +182,22 @@ else
 
 ## 🔍 확대 / 축소 비율
 
-타임라인 길이는 `TimelineControlBase.GetTimelineHeight` 한 식으로 정합니다.
+타임라인 길이는 `TimelineControlBase.ComputeTimelineLength` 한 식으로 정합니다. 컨트롤의 `GetTimelineHeight` 는 자기 속성을 넣어 이 함수를 부릅니다.
 
 ```csharp
 // muse dash bms editer/Views/Controls/TimelineControlBase.cs
-protected double GetTimelineHeight()
+public static double ComputeTimelineLength(
+    double durationSeconds, int measureCount, double rowHeight, double verticalZoom, int beatSplit, int gridMeasure)
 {
-    var spacingScale = GetGridSpacingScale();
-    if (DurationSeconds > 0)
-        return Math.Max(1.0, DurationSeconds * RowHeight * VerticalZoom * spacingScale / 2.0);
+    var spacingScale = GridSpacingScale(beatSplit, gridMeasure);
+    if (durationSeconds > 0)
+        return Math.Max(1.0, durationSeconds * rowHeight * verticalZoom * spacingScale / 2.0);
 
-    return MeasureCount * RowHeight * VerticalZoom * spacingScale;
+    return measureCount * rowHeight * verticalZoom * spacingScale;
 }
 
-protected double GetGridSpacingScale() => Math.Max(1.0, BeatSplit / (double)Math.Max(1, GridMeasure));
+public static double GridSpacingScale(int beatSplit, int gridMeasure) =>
+    Math.Max(1.0, beatSplit / (double)Math.Max(1, gridMeasure));
 ```
 
 `BeatSplit / GridMeasure` 가 곱해지므로, **비트 수를 늘리면 타임라인도 같이 길어져 칸 간격이 유지됩니다.**
@@ -208,6 +210,6 @@ protected double GetGridSpacingScale() => Math.Max(1.0, BeatSplit / (double)Math
 
 * **세로 줌**은 시간축 길이만 바꿉니다. 파형의 진폭은 **파형 가로 줌**이 따로 맡습니다.
 * **그리드 가로 줌**은 레인 폭(`40 × 가로 줌` px)만 바꿉니다.
-* 타임라인 길이를 계산하는 식은 `MainWindow.GetTimelineLength`(스크롤 위치 계산용)에도 같은 모양으로 한 번 더 적혀 있습니다. 한쪽을 고치면 다른 쪽도 고쳐야 합니다.
+* 타임라인 길이를 계산하는 식은 `TimelineControlBase.ComputeTimelineLength` 한 곳에만 있습니다. 격자·파형 컨트롤과 `MainWindow.GetTimelineLength`(스크롤 따라가기·가운데 버튼 스크럽용)가 모두 이 함수를 부릅니다.
 
 관련 문서: [bpm_sync_principles.md](../architecture/bpm_sync_principles.md) (마디 ↔ 초 변환) · [note_circle_icon.md](../plans/note_circle_icon.md) (칸 간격과 노트 크기)

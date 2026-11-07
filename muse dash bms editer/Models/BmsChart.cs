@@ -42,7 +42,9 @@ public sealed class BmsChart
     // Chart 는 뷰에 바인딩돼 있어 통째로 갈아끼울 수 없고, 그렇다고 부르는 쪽에서
     // 컬렉션을 하나씩 옮기면 새 컬렉션이 생길 때마다 빠뜨리기 쉽다. 실제로
     // MeasureLengths 가 그렇게 빠져 있었다. 옮기는 자리를 여기 하나로 모은다.
-    public void ReplaceContentWith(BmsChart source)
+    // includeNotes 가 false 면 노트는 비워 둔다. 되돌리기 스냅샷처럼 노트를 따로 담는 쪽이
+    // 전부 복제했다가 곧바로 버리지 않게 하려는 것이다.
+    public void ReplaceContentWith(BmsChart source, bool includeNotes = true)
     {
         Header.CopyFrom(source.Header);
         Lanes = source.Lanes;
@@ -50,8 +52,11 @@ public sealed class BmsChart
         HasConditionalBlocks = source.HasConditionalBlocks;
 
         Notes.Clear();
-        foreach (var note in source.Notes)
-            Notes.Add(note.Clone());
+        if (includeNotes)
+        {
+            foreach (var note in source.Notes)
+                Notes.Add(note.Clone());
+        }
 
         PreservedLines.Clear();
         PreservedLines.AddRange(source.PreservedLines);

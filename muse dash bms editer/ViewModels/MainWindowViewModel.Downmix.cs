@@ -224,7 +224,7 @@ public sealed partial class MainWindowViewModel
             _isRestoringHistory = false;
         }
 
-        NotifyNotesChanged("건반 BMS 가져오기");
+        NotifyNotesChanged(KeyboardImportHistoryLabel);
         NotifySelectionChanged();
     }
 

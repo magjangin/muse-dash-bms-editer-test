@@ -11,6 +11,21 @@ namespace bms_editer.Tests;
 // 씽크를 맞추는 기준선이라 결과는 크다. 그래서 규칙 자체에 테스트를 건다.
 public sealed class WaveformTimeAxisTests
 {
+    // 타임라인 길이 규칙. 메인 창과 컨트롤이 같은 함수를 부르므로 여기서 한 번만 잠근다.
+    [Theory]
+    [InlineData(60.0, 32, 16.0, 10.0, 16, 4, 60.0 * 16 * 10 * 4 / 2.0)] // 음원이 있으면 길이 기준
+    [InlineData(0.0, 32, 16.0, 10.0, 16, 4, 32 * 16 * 10 * 4.0)]        // 없으면 마디 수 기준
+    [InlineData(1e-6, 32, 16.0, 10.0, 16, 4, 1.0)]                      // 아주 짧은 음원도 0 으로 나누지 않게 1 이상
+    [InlineData(60.0, 32, 16.0, 10.0, 2, 4, 60.0 * 16 * 10 * 1 / 2.0)] // 분할이 마디 박자보다 적으면 배율 1
+    public void 타임라인_길이_규칙(
+        double duration, int measures, double rowHeight, double zoom, int beatSplit, int gridMeasure, double expected)
+    {
+        var actual = bms_editer.Views.Controls.TimelineControlBase.ComputeTimelineLength(
+            duration, measures, rowHeight, zoom, beatSplit, gridMeasure);
+
+        Assert.Equal(expected, actual, 6);
+    }
+
     [Theory]
     [InlineData(0, 10, 0.0)]
     [InlineData(1, 10, 0.1)]
@@ -66,10 +81,10 @@ public sealed class WaveformTimeAxisTests
     // 화면 칸 크기. OggWaveformControl.DrawBlockWaveform 의 blockLength 와 같다.
     private const double BlockLength = 2.0;
 
-    // 타임라인 길이. TimelineControlBase.GetTimelineHeight 와 같은 식이다.
+    // 타임라인 길이. 컨트롤과 메인 창이 쓰는 규칙을 그대로 부른다.
     // (RowHeight 16 · BeatSplit 16 / GridMeasure 4 = 기본값)
     private static double TimelineLength(double durationSeconds, double verticalZoom) =>
-        durationSeconds * 16 * verticalZoom * 4 / 2.0;
+        bms_editer.Views.Controls.TimelineControlBase.ComputeTimelineLength(durationSeconds, 32, 16, verticalZoom, 16, 4);
 
     private static int DisplayPointCount(double timelineLength) =>
         Math.Max(2, (int)Math.Ceiling(timelineLength / BlockLength));
