@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -68,7 +69,23 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
     public void Preload(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath)) return;
-        _cache.GetOrAdd(filePath, WavDecoder.Decode);
+        GetOrLoad(filePath);
+    }
+
+    // 디코딩 결과를 경로별로 기억한다. 단 **파일이 없어서** 못 읽은 것은 기억하지 않는다.
+    //
+    // 예전에는 "파일 없음"도 null 로 기억해서, 차트를 연 뒤(또는 건반 BMS 가져오기 뒤)
+    // 씬 WAV 폴더를 넣어도 앱을 다시 켜기 전까지 그 키음이 영영 안 들렸다(usability_review U-13).
+    // 파일은 있는데 디코딩이 실패한 것은 다시 읽어도 같으므로 그대로 기억한다.
+    public PcmAudioData? GetOrLoad(string filePath)
+    {
+        if (_cache.TryGetValue(filePath, out var cached))
+            return cached;
+
+        if (!File.Exists(filePath))
+            return null;
+
+        return _cache.GetOrAdd(filePath, WavDecoder.Decode);
     }
 
     public void PreloadAsync(IEnumerable<string> filePaths)
@@ -89,7 +106,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         if (string.IsNullOrWhiteSpace(filePath) || _isDisposed)
             return;
 
-        var pcm = _cache.GetOrAdd(filePath, WavDecoder.Decode);
+        var pcm = GetOrLoad(filePath);
         if (pcm is null || pcm.Samples.Length == 0)
         {
             // 디코딩 실패 시 OS 기본 PlaySound 로 시도

@@ -87,12 +87,17 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
         {
             OnPropertyChanged(nameof(AreNoteTypeFiltersUsable));
             OnPropertyChanged(nameof(NoteTypeFilterHint));
-
-            if (WavKeyTo == "ZZ" && KeyWidth == 3)
-                WavKeyTo = "ZZZ";
-            else if (WavKeyTo == "ZZZ" && KeyWidth == 2)
-                WavKeyTo = "ZZ";
+            SyncWavKeyToWidth();
         }
+    }
+
+    // 번호 범위 끝이 "전부"(ZZ / ZZZ)였다면 차트 자릿수가 바뀌어도 "전부"로 남게 한다.
+    private void SyncWavKeyToWidth()
+    {
+        if (WavKeyTo == "ZZ" && KeyWidth == 3)
+            WavKeyTo = "ZZZ";
+        else if (WavKeyTo == "ZZZ" && KeyWidth == 2)
+            WavKeyTo = "ZZ";
     }
 
     protected override void OnWavListChanged()
@@ -101,11 +106,7 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
         SceneChoices = BuildSceneChoices();
         OnPropertyChanged(nameof(SceneChoices));
         TargetScene = SceneChoices.FirstOrDefault(c => c.Number == previousNumber) ?? SceneChoices.FirstOrDefault();
-
-        if (WavKeyTo == "ZZ" && KeyWidth == 3)
-            WavKeyTo = "ZZZ";
-        else if (WavKeyTo == "ZZZ" && KeyWidth == 2)
-            WavKeyTo = "ZZ";
+        SyncWavKeyToWidth();
     }
 
     public ObservableCollection<LaneFilterItem> Lanes { get; } = new();

@@ -152,4 +152,28 @@ public sealed class KeySoundPlayerTests
             if (File.Exists(path2)) File.Delete(path2);
         }
     }
+
+    // usability_review U-13. 없던 파일을 나중에 넣으면 앱을 다시 켜지 않아도 읽혀야 한다.
+    [Fact]
+    public void 없던_키음_파일을_나중에_넣으면_다시_읽는다()
+    {
+        using var player = new KeySoundPlayer();
+        var source = CreateSyntheticWavFile(44100, 2, 16, 1, 1000);
+        var path = Path.Combine(Path.GetTempPath(), $"test_sound_late_{Guid.NewGuid():N}.wav");
+
+        try
+        {
+            player.Preload(path);
+            Assert.Null(player.GetOrLoad(path));
+
+            File.Copy(source, path);
+
+            Assert.NotNull(player.GetOrLoad(path));
+        }
+        finally
+        {
+            if (File.Exists(source)) File.Delete(source);
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

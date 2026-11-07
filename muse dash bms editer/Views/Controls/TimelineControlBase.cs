@@ -183,16 +183,25 @@ public abstract class TimelineControlBase : Control
             BeatSplitProperty, GridMeasureProperty, DurationSecondsProperty, IsHorizontalViewProperty);
     }
 
-    protected double GetTimelineHeight()
-    {
-        var spacingScale = GetGridSpacingScale();
-        if (DurationSeconds > 0)
-            return Math.Max(1.0, DurationSeconds * RowHeight * VerticalZoom * spacingScale / 2.0);
+    protected double GetTimelineHeight() =>
+        ComputeTimelineLength(DurationSeconds, MeasureCount, RowHeight, VerticalZoom, BeatSplit, GridMeasure);
 
-        return MeasureCount * RowHeight * VerticalZoom * spacingScale;
+    protected double GetGridSpacingScale() => GridSpacingScale(BeatSplit, GridMeasure);
+
+    // 타임라인 길이 규칙은 여기 한 곳에만 둔다. 메인 창(스크롤 따라가기·가운데 버튼 스크럽)도 이 식을 부른다.
+    // 예전에는 MainWindow 가 같은 식을 한 벌 따로 들고 있어서, 한쪽만 고치면 커서와 격자가 어긋났다.
+    public static double ComputeTimelineLength(
+        double durationSeconds, int measureCount, double rowHeight, double verticalZoom, int beatSplit, int gridMeasure)
+    {
+        var spacingScale = GridSpacingScale(beatSplit, gridMeasure);
+        if (durationSeconds > 0)
+            return Math.Max(1.0, durationSeconds * rowHeight * verticalZoom * spacingScale / 2.0);
+
+        return measureCount * rowHeight * verticalZoom * spacingScale;
     }
 
-    protected double GetGridSpacingScale() => Math.Max(1.0, BeatSplit / (double)Math.Max(1, GridMeasure));
+    public static double GridSpacingScale(int beatSplit, int gridMeasure) =>
+        Math.Max(1.0, beatSplit / (double)Math.Max(1, gridMeasure));
 
     protected static int Mod(int value, int divisor) => ((value % divisor) + divisor) % divisor;
 

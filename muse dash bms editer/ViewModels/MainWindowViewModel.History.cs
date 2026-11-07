@@ -23,6 +23,10 @@ public sealed partial class MainWindowViewModel
     // 되돌리기를 두 번 눌러야 한 칸 움직이고, 다시 하기는 영영 비활성이 된다.
     private bool _isRestoringHistory;
 
+    // 이 이름의 칸만 헤더·보존줄까지 담은 문서 통째 스냅샷을 갖는다(다른 편집은 노트·키음 표만).
+    // 기록하는 쪽(Downmix)과 되돌리는 쪽이 같은 글자를 따로 적지 않도록 상수로 둔다.
+    private const string KeyboardImportHistoryLabel = "건반 BMS 가져오기";
+
     // 키음 표 스냅샷 캐시. 키음은 노트에 비해 거의 안 바뀌는데(실측 차트는 628개 고정)
     // 노트를 한 번 찍을 때마다 628개를 복제하면 메모리와 시간이 아깝다.
     // WavList 가 바뀔 때 무효화한다. (BmsWavItem 의 속성을 제자리에서 고치는 코드는 없다)
@@ -44,7 +48,7 @@ public sealed partial class MainWindowViewModel
     [RelayCommand(CanExecute = nameof(CanUndo))]
     private void Undo()
     {
-        var restoreDocument = _history.UndoLabel == "건반 BMS 가져오기";
+        var restoreDocument = _history.UndoLabel == KeyboardImportHistoryLabel;
         if (_history.Undo() is { } snapshot)
             ApplySnapshot(snapshot, restoreDocument);
     }
@@ -52,7 +56,7 @@ public sealed partial class MainWindowViewModel
     [RelayCommand(CanExecute = nameof(CanRedo))]
     private void Redo()
     {
-        var restoreDocument = _history.RedoLabel == "건반 BMS 가져오기";
+        var restoreDocument = _history.RedoLabel == KeyboardImportHistoryLabel;
         if (_history.Redo() is { } snapshot)
             ApplySnapshot(snapshot, restoreDocument);
     }
@@ -71,7 +75,7 @@ public sealed partial class MainWindowViewModel
         if (_isRestoringHistory)
             return;
 
-        _history.Record(TakeSnapshot(label, includeDocument: label == "건반 BMS 가져오기"));
+        _history.Record(TakeSnapshot(label, includeDocument: label == KeyboardImportHistoryLabel));
         NotifyHistoryChanged();
     }
 
@@ -132,9 +136,9 @@ public sealed partial class MainWindowViewModel
         BmsChart? document = null;
         if (includeDocument)
         {
+            // 노트는 위에서 따로 복제해 담으므로 문서 쪽에는 옮기지 않는다.
             document = new BmsChart();
-            document.ReplaceContentWith(Chart);
-            document.Notes.Clear();
+            document.ReplaceContentWith(Chart, includeNotes: false);
             CopyHeaderTo(document.Header);
         }
 

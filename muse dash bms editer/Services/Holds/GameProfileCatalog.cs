@@ -63,7 +63,7 @@ public sealed class GameProfileCatalog
         foreach (var (name, json) in ReadEmbedded())
             TryAdd(name, json);
 
-            if (!string.IsNullOrEmpty(overrideDirectory) && Directory.Exists(overrideDirectory))
+        if (!string.IsNullOrEmpty(overrideDirectory) && Directory.Exists(overrideDirectory))
         {
             foreach (var file in Directory.EnumerateFiles(overrideDirectory, "*.json").OrderBy(f => f, StringComparer.Ordinal))
             {
