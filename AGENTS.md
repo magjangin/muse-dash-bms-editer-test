@@ -1,16 +1,23 @@
 # Muse Dash BMS Editor — Project Handover & Agent Guide
 
-> [!IMPORTANT]
-> **패키징 이원화 및 번호/아이콘 규칙**:
-> 1. **1번: 개인용 (`publish/personal/muse dash bms editer 1.exe`)**:
->    - `EmbedNoteIcons=true`로 모든 스프라이트가 exe 내부에 100% 임베드된 **단일 exe**입니다 (외부 폴더 없음, Git 미포함).
->    - 앱 아이콘: **골드 앰버 + 숫자 1 뱃지** (`Assets/icon_personal.ico`).
->    - 창 제목: `[1. 개인용]` 접미사 자동 표기.
-> 2. **2번: 릴리즈용 (`publish/release/muse dash bms editer 2.exe`)**:
->    - exe 자체는 에셋 미내장 순수 바이너리이며, **외부 `note_icons/` 폴더가 함께 있는 구성**입니다.
->    - 앱 아이콘: **사이언 블루 + 숫자 2 뱃지** (`Assets/icon_release.ico`).
->    - 창 제목: `[2. 릴리즈용]` 접미사 자동 표기.
-> 3. **퍼블리싱 전 클린 빌드 권장**: `PublishSingleFile` 캐시 잔여 문제를 방지하기 위해 배포 스크립트 실행 시 기존 산출물을 자동 정리 후 새로 패키징합니다.
+> [!CAUTION]
+> ## 🚨 [필수 인수인계 원칙] 가장 중요한 1, 2, 3대 패키징 규칙
+> 본 프로젝트의 유지보수 및 추가 개발 시 **아래 1, 2, 3번 규칙은 어떠한 경우에도 반드시 준수**해야 합니다:
+>
+> 1. **1번: 개인용 바이너리 (`publish/personal/muse dash bms editer 1.exe`)**:
+>    - **에셋 100% 영구 내장 단일 파일**: `EmbedNoteIcons=true` 옵션으로 빌드되어 모든 게임 스프라이트(120여 개 PNG)가 exe 내부에 완전히 임베드된 **순수 단일 실행 파일**입니다.
+>    - **외부 폴더 절대 금지**: `publish/personal/` 디렉터리에는 외부 `note_icons/` 폴더를 복사하지 않고 오직 `muse dash bms editer 1.exe` 단 하나만 존재해야 합니다.
+>    - **시각적 식별**: 앱/창 아이콘은 **골드 앰버 + 숫자 1 뱃지**(`Assets/icon_personal.ico`), 창 제목에는 `[1. 개인용]` 접두사가 자동 표기됩니다.
+>    - **보안 및 저작권**: 게임 저작권 에셋이 내장되어 있으므로 **Git 추적에서 100% 영구 제외**(`.gitignore`)되어 있습니다.
+>
+> 2. **2번: 릴리즈용 바이너리 (`publish/release/muse dash bms editer 2.exe`)**:
+>    - **외부 폴더 분리형 패키지**: exe 자체는 에셋이 미내장된 순수 바이너리(`EmbedNoteIcons=false`)이며, **외부 `note_icons/` 폴더가 반드시 함께 있는 구성**입니다.
+>    - **시각적 식별**: 앱/창 아이콘은 **사이언 블루 + 숫자 2 뱃지**(`Assets/icon_release.ico`), 창 제목에는 `[2. 릴리즈용]` 접두사가 자동 표기됩니다.
+>    - **용도**: 공개 깃허브 Releases 배포용 또는 외부 에셋 폴더를 직접 관리하는 사용자 대상 패키지입니다.
+>
+> 3. **3번: 퍼블리싱 전 클린 빌드 및 어셈블리명 고정 필수**:
+>    - **사전 삭제 필수**: `.NET Single-File` 환경 특성상 기존 산출물이 남아있는 상태에서 덮어쓰기 빌드를 진행하면 캐시 꼬임 및 매니페스트 불일치가 발생합니다. 퍼블리싱 전 **반드시 대상 폴더의 기존 산출물을 완전 삭제 후 새로 패키징**해야 합니다 (`build_publish.bat`, `build_personal.bat`, `build_release.bat`에 기본 탑재).
+>    - **임의 리네임 금지**: 빌드 후 파일 시스템에서 exe 이름을 임의 변경(`Move-Item`)하면 `HostFXR 0x80008092` 크래시가 발생하므로, 반드시 프로필의 `<AssemblyName>`(`muse dash bms editer 1`, `muse dash bms editer 2`)을 통해 컴파일 시점부터 파일명이 결정되도록 유지해야 합니다.
 
 ---
 
