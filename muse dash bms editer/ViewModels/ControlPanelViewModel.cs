@@ -176,7 +176,7 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
     // 고른 키음을 쓰는 노트의 번호를 한꺼번에 바꾼다.
     [RelayCommand(CanExecute = nameof(HasWavSelection))]
-    private void ReplaceWavNotes()
+    private async Task ReplaceWavNotesAsync()
     {
         if (SelectedWavStat is not { } wav)
             return;
@@ -198,6 +198,12 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
         }
 
         var matches = FindNotesUsing(wav.Key);
+        if (!await ConfirmBulkAsync(matches.Count, $"#{target} 로 바꿉니다"))
+        {
+            StatusMessage = "바꾸지 않았습니다.";
+            return;
+        }
+
         var changed = Owner.ReplaceWavKey(matches, target);
 
         // 바뀐 노트가 곧 새 번호 줄이 된다. 다시 집계된 목록에서 그 줄을 고른 채로 둔다.

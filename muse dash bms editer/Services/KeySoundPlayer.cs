@@ -59,6 +59,16 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
     private readonly AutoResetEvent _wakeEvent = new(false);
     private volatile bool _isDisposed;
 
+    // 256 이 원음. 믹서 스레드가 읽으므로 한 번에 읽히는 정수로 둔다.
+    private volatile int _gain = 256;
+
+    // 0.0 ~ 1.0
+    public double Volume
+    {
+        get => _gain / 256.0;
+        set => _gain = (int)Math.Round(Math.Clamp(value, 0.0, 1.0) * 256);
+    }
+
     public KeySoundPlayer()
     {
         for (var i = 0; i < BufferCount; i++)
@@ -288,6 +298,8 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         // 믹싱 버퍼 초기화
         Array.Clear(shortBuffer, 0, shortBuffer.Length);
 
+        var gain = _gain;
+
         bool mixedAnyVoice;
         lock (_lock)
         {
@@ -300,7 +312,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
                 for (var i = 0; i < samplesToCopy; i++)
                 {
-                    var mixed = shortBuffer[i] + voice.Samples[voice.Position + i];
+                    var mixed = shortBuffer[i] + ((voice.Samples[voice.Position + i] * gain) >> 8);
                     shortBuffer[i] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
                 }
 

@@ -166,7 +166,12 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _playbackSpeed = 1.0;
     [ObservableProperty] private bool _isKeySoundEnabled = true;
 
-    public string KeySoundToggleText => IsKeySoundEnabled ? "🔊 키음 소리 켜짐" : "🔇 키음 소리 끄기";
+    // 키음 음량(0~1). 배경음과 섞였을 때 맞추는 값이라 문서가 아니라 설정에 남긴다.
+    [ObservableProperty] private double _keySoundVolume = 1.0;
+
+    partial void OnKeySoundVolumeChanged(double value) => _keySoundPlayer.Volume = value;
+
+    public string KeySoundToggleText => IsKeySoundEnabled ? "🔊 키음 소리 켜짐" : "🔇 키음 소리 꺼짐";
 
     partial void OnIsKeySoundEnabledChanged(bool value) => OnPropertyChanged(nameof(KeySoundToggleText));
 
@@ -367,7 +372,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     // 문서를 고쳤다고 표시한다. 노트·헤더·키음이 바뀌는 모든 자리에서 부른다.
-    public void MarkDirty() => IsDirty = true;
+    public void MarkDirty()
+    {
+        _documentRevision++;
+        IsDirty = true;
+    }
 
     public void MarkClean()
     {
@@ -395,6 +404,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _playbackTimer.Stop();
         _playbackSpeedDebounceTimer.Stop();
         _gridSyncFlashTimer.Stop();
+        _autoSaveTimer?.Stop();
+        AutoSave?.Dispose();
         _audioPlayer?.Dispose();
         _keySoundPlayer.Dispose();
 

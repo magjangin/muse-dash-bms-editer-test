@@ -23,7 +23,7 @@ public sealed class PlaybackSpeedAndKeySoundTests
 
         vm.ToggleKeySoundCommand.Execute(null);
         Assert.False(vm.IsKeySoundEnabled);
-        Assert.Contains("끄기", vm.KeySoundToggleText);
+        Assert.Contains("꺼짐", vm.KeySoundToggleText);
 
         vm.ToggleKeySoundCommand.Execute(null);
         Assert.True(vm.IsKeySoundEnabled);

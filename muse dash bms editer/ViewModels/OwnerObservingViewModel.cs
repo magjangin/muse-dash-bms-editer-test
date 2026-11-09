@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace bms_editer.ViewModels;
@@ -48,4 +49,17 @@ public abstract partial class OwnerObservingViewModel : ObservableObject, IDispo
     }
 
     protected virtual void OnDispose() { }
+
+    // 이 개수를 넘는 일괄 작업은 먼저 묻는다. 조건 하나를 잘못 잡으면 수백 개가 화면 밖에서 바뀐다.
+    public const int BulkConfirmThreshold = 20;
+
+    // 진행해도 되면 true. 확인 창을 띄울 길이 없으면 하지 않는다.
+    protected async Task<bool> ConfirmBulkAsync(int count, string action)
+    {
+        if (count <= BulkConfirmThreshold)
+            return true;
+
+        return Owner.ConfirmAsync is { } confirm
+            && await confirm($"노트 {count}개를 {action}.\n\n되돌리기(Ctrl+Z)로 되돌릴 수 있습니다.\n\n계속할까요?");
+    }
 }
