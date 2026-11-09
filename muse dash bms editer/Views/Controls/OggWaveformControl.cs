@@ -87,7 +87,9 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         var waveformThickness = IsHorizontalView ? height : width;
         var center = waveformThickness / 2.0;
+        var range = BeginTimelineRender();
 
+        // 배경은 잘라 그리지 않는다. 그린 자리만 클릭을 받기 때문이다(NoteGridControl 참고).
         context.FillRectangle(WaveformBackgroundBrush, new Rect(0, 0, width, height));
 
         if (IsHorizontalView)
@@ -104,13 +106,15 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds);
-            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds, range);
+            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView, range);
         }
         else
         {
             var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-            for (var tPos = 0.0; tPos <= timelineLength; tPos += 2.0)
+            var firstPos = range.IsAll ? 0.0 : Math.Max(0.0, Math.Floor(range.Start / 2.0) * 2.0);
+            var lastPos = range.IsAll ? timelineLength : Math.Min(timelineLength, range.End);
+            for (var tPos = firstPos; tPos <= lastPos; tPos += 2.0)
             {
                 if (IsHorizontalView)
                 {
@@ -131,7 +135,18 @@ public sealed class OggWaveformControl : TimelineControlBase
             }
         }
 
-        DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView);
+        DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView, range);
+    }
+
+    protected override void RenderOverlay(DrawingContext context)
+    {
+        var width = Bounds.Width;
+        var height = Bounds.Height;
+        var timelineLength = GetTimelineHeight();
+
+        if (width <= 0 || height <= 0 || timelineLength <= 0)
+            return;
+
         DrawGridSyncFlash(context, width, height);
 
         // 재생 커서도 같은 시간축 위에 있어야 파형과 맞는다.
@@ -200,13 +215,18 @@ public sealed class OggWaveformControl : TimelineControlBase
         IPen outlinePen,
         bool isHorizontal,
         double audioOffsetSeconds,
-        double durationSeconds)
+        double durationSeconds,
+        TimelineRange range)
     {
         var blockLength = 2.0;
         var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / blockLength));
         var offsetRatio = durationSeconds > 0 ? (audioOffsetSeconds / durationSeconds) : 0.0;
 
-        for (var i = 0; i < displayPointCount; i++)
+        // 칸 번호는 전체 기준 그대로 둔다. 윤곽선을 세 칸마다 긋는 자리가 스크롤에 따라 흔들리지 않는다.
+        var firstBlock = range.IsAll ? 0 : Math.Clamp((int)Math.Floor(range.Start / blockLength), 0, displayPointCount);
+        var endBlock = range.IsAll ? displayPointCount : Math.Clamp((int)Math.Ceiling(range.End / blockLength) + 1, 0, displayPointCount);
+
+        for (var i = firstBlock; i < endBlock; i++)
         {
             var tPos = i * blockLength;
 
@@ -263,7 +283,8 @@ public sealed class OggWaveformControl : TimelineControlBase
         double thickness,
         double timelineLength,
         IReadOnlyList<float>? onsets,
-        bool isHorizontal)
+        bool isHorizontal,
+        TimelineRange range)
     {
         if (onsets is null || onsets.Count == 0 || timelineLength <= 0 || DurationSeconds <= 0)
             return;
@@ -272,7 +293,18 @@ public sealed class OggWaveformControl : TimelineControlBase
         var endOffset = thickness - (isHorizontal ? 6.0 : 20.0);
         var center = thickness / 2.0;
 
-        for (var i = 0; i < onsets.Count; i++)
+        // 화면 구간의 시각을 온셋 번호로 되돌린다. 오프셋만큼 음원이 밀려 있는 것도 뺀다.
+        var firstOnset = 0;
+        var endOnset = onsets.Count;
+        if (!range.IsAll)
+        {
+            var (ratioFrom, ratioTo) = ToRatioRange(range, timelineLength);
+            var offsetRatio = AudioOffsetSeconds / DurationSeconds;
+            firstOnset = Math.Clamp((int)Math.Floor((ratioFrom - offsetRatio) * onsets.Count) - 1, 0, onsets.Count);
+            endOnset = Math.Clamp((int)Math.Ceiling((ratioTo - offsetRatio) * onsets.Count) + 2, 0, onsets.Count);
+        }
+
+        for (var i = firstOnset; i < endOnset; i++)
         {
             var alphaVal = onsets[i];
             if (alphaVal <= 0.01f) continue;
@@ -332,12 +364,13 @@ public sealed class OggWaveformControl : TimelineControlBase
         DrawingContext context,
         double thickness,
         double timelineLength,
-        bool isHorizontal)
+        bool isHorizontal,
+        TimelineRange range)
     {
         if (timelineLength <= 0 || Bpm <= 0)
             return;
 
-        foreach (var line in EnumerateGridLines(timelineLength))
+        foreach (var line in EnumerateGridLines(timelineLength, range))
         {
             var pen = line.Kind switch
             {

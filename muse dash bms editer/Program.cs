@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using bms_editer.Services;
 
@@ -14,6 +15,18 @@ internal class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception fatal)
+                CrashLog.Write(fatal, "AppDomain");
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashLog.Write(e.Exception, "Task");
+            e.SetObserved();
+        };
+
         try
         {
             App.StartupFilePath = args.FirstOrDefault(IsChartFile);
@@ -21,8 +34,7 @@ internal class Program
         }
         catch (Exception ex)
         {
-            var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
-            File.WriteAllText(logPath, ex.ToString());
+            CrashLog.Write(ex, "Main");
             Console.Error.WriteLine(ex);
             throw;
         }

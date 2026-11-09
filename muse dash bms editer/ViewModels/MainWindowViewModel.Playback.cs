@@ -10,8 +10,18 @@ public sealed partial class MainWindowViewModel
     [RelayCommand]
     private void Play()
     {
+        if (_audioPlayer is null)
+        {
+            UserMessageRequested?.Invoke("재생할 음원이 없습니다. 먼저 OGG 를 여십시오.");
+            return;
+        }
+
         PlayFrom(IsPlaybackCursorVisible ? PlaybackPositionSeconds : 0);
     }
+
+    // 사용자에게 알려야 할 일. 예전에는 재생에 실패해도 LastErrorMessage 에 담기만 하고
+    // 띄우는 곳이 없어서, 스페이스를 눌러도 아무 반응이 없는 것처럼 보였다.
+    public event Action<string>? UserMessageRequested;
 
     [RelayCommand]
     private void Stop()
@@ -75,6 +85,7 @@ public sealed partial class MainWindowViewModel
             StopPlayback(resetCursor: false);
             LastErrorMessage = $"재생을 시작하지 못했습니다.\n\n{ex.Message}";
             System.Diagnostics.Debug.WriteLine($"재생 실패: {ex.Message}");
+            UserMessageRequested?.Invoke(LastErrorMessage);
             return false;
         }
 
@@ -103,12 +114,17 @@ public sealed partial class MainWindowViewModel
             ? _playbackStartSeconds + played
             : _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds * PlaybackSpeed;
 
+        // 장치가 다 틀었으면 곡 끝이다. 위치 값은 드라이버에 따라 마지막 몇 샘플이 모자랄 수 있다.
+        var finished = _audioPlayer.IsPlaybackFinished;
+        if (finished)
+            currentSec = Math.Max(currentSec, OggDurationSeconds);
+
         PlaybackPositionSeconds = currentSec;
 
         PlayNotesInTimeRange(_lastPlaybackPositionSeconds + AudioOffsetSeconds, currentSec + AudioOffsetSeconds);
         _lastPlaybackPositionSeconds = currentSec;
 
-        if (PlaybackPositionSeconds >= OggDurationSeconds)
+        if (finished || PlaybackPositionSeconds >= OggDurationSeconds)
             StopPlayback(resetCursor: false);
     }
 
@@ -153,6 +169,11 @@ public sealed partial class MainWindowViewModel
 
     private void StopPlayback(bool resetCursor)
     {
+        // 재생을 멈췄는데 긴 키음이 끝까지 남아 울리면 멈춘 것처럼 들리지 않는다.
+        // 재생 중일 때만 끊는다. 키음 팔레트에서 미리 듣는 소리까지 끊으면 안 된다.
+        if (IsPlaying)
+            _keySoundPlayer.StopAll();
+
         _playbackTimer.Stop();
         _playbackSpeedDebounceTimer.Stop();
         _audioPlayer?.Stop();

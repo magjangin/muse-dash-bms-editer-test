@@ -135,7 +135,7 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
     [ObservableProperty] private bool _includeVisible = true;
 
     [ObservableProperty] private int _measureFrom;
-    [ObservableProperty] private int _measureTo = 999;
+    [ObservableProperty] private int _measureTo = 9999;
 
     [ObservableProperty] private string _wavKeyFrom = string.Empty;
     [ObservableProperty] private string _wavKeyTo = string.Empty;

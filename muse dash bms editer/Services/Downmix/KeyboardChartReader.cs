@@ -101,11 +101,14 @@ public static class KeyboardChartReader
         for (var i = 0; i < lines.Length; i++)
         {
             var match = DataLine.Match(lines[i].Trim());
-            if (!match.Success)
+            if (!match.Success
+                || !int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var measure))
+            {
                 continue;
+            }
 
             found.Add((
-                int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture),
+                measure,
                 match.Groups[2].Value.ToUpperInvariant(),
                 match.Groups[3].Value.ToUpperInvariant(),
                 i));

@@ -105,15 +105,7 @@ public sealed class ChartTimeline
         if (seconds <= 0)
             return 0;
 
-        var measure = 0;
-        while (measure < MaxMeasure)
-        {
-            EnsureBoundary(measure + 1);
-            if (_measureStartSeconds[measure + 1] > seconds)
-                break;
-
-            measure++;
-        }
+        var measure = FindMeasureContaining(seconds);
 
         var remaining = seconds - _measureStartSeconds[measure];
         var bpm = _bpmAtMeasureStart[measure];
@@ -144,6 +136,34 @@ public sealed class ChartTimeline
             return measure + cursor;
 
         return measure + Math.Min(1.0, cursor + (remaining / wholeMeasureSeconds));
+    }
+
+    // seconds 가 들어 있는 마디. 마디 경계는 커지기만 하므로 이진 탐색한다.
+    //
+    // 예전에는 0마디부터 한 칸씩 훑었다. 격자를 화면에 보이는 구간부터 그리려면
+    // 렌더마다 이 값을 물어야 해서, 긴 곡에서는 여기가 그대로 병목이 된다.
+    private int FindMeasureContaining(double seconds)
+    {
+        // seconds 를 넘는 경계가 나올 때까지 두 배씩 늘린다.
+        var known = _measureStartSeconds.Count - 1;
+        while (known < MaxMeasure && _measureStartSeconds[known] <= seconds)
+        {
+            known = Math.Min(MaxMeasure, Math.Max(16, known * 2));
+            EnsureBoundary(known);
+        }
+
+        var low = 1;
+        var high = known;
+        while (low < high)
+        {
+            var mid = low + ((high - low) / 2);
+            if (_measureStartSeconds[mid] > seconds)
+                high = mid;
+            else
+                low = mid + 1;
+        }
+
+        return _measureStartSeconds[low] > seconds ? low - 1 : low;
     }
 
     // 마디 안에서 measureFraction 만큼이 차지하는 시간. BPM 이 일정한 구간에서만 쓴다.

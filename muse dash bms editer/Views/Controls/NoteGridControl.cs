@@ -328,11 +328,8 @@ public sealed class NoteGridControl : TimelineControlBase
         var width = image.PixelSize.Width * scale;
         var height = image.PixelSize.Height * scale;
 
-        using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.HighQuality }))
-        {
-            context.DrawImage(image, new Rect(0, 0, image.PixelSize.Width, image.PixelSize.Height),
-                new Rect(center.X - (width / 2), center.Y - (height / 2), width, height));
-        }
+        context.DrawImage(image, new Rect(0, 0, image.PixelSize.Width, image.PixelSize.Height),
+            new Rect(center.X - (width / 2), center.Y - (height / 2), width, height));
 
         if (icon.Direction != NoteDirection.None)
         {
@@ -341,18 +338,9 @@ public sealed class NoteGridControl : TimelineControlBase
             var badge = new Point(
                 Math.Min(center.X + (width / 2) - half, center.X + (laneThickness / 2) - half - 1),
                 center.Y - (height / 2) + half);
-            var tip = icon.Direction == NoteDirection.Up ? -half : half;
 
-            var geometry = new StreamGeometry();
-            using (var ctx = geometry.Open())
-            {
-                ctx.BeginFigure(new Point(badge.X, badge.Y + tip), true);
-                ctx.LineTo(new Point(badge.X + half, badge.Y - tip));
-                ctx.LineTo(new Point(badge.X - half, badge.Y - tip));
-                ctx.EndFigure(true);
-            }
-
-            context.DrawGeometry(DirectionBadgeBrush, DirectionBadgePen, geometry);
+            using (context.PushTransform(Matrix.CreateTranslation(badge.X, badge.Y)))
+                context.DrawGeometry(DirectionBadgeBrush, DirectionBadgePen, GetDirectionBadge(icon.Direction, half));
         }
 
         if (icon.Marker != BossMarker.None)
@@ -361,15 +349,45 @@ public sealed class NoteGridControl : TimelineControlBase
         return true;
     }
 
+    // 방향 삼각형. 크기는 레인 폭으로만 정해져서, 노트마다 새로 만들지 않고 두 장을 돌려 쓴다.
+    private StreamGeometry? _directionBadgeUp;
+    private StreamGeometry? _directionBadgeDown;
+    private double _directionBadgeHalf;
+
+    private StreamGeometry GetDirectionBadge(NoteDirection direction, double half)
+    {
+        if (half != _directionBadgeHalf)
+        {
+            _directionBadgeUp = null;
+            _directionBadgeDown = null;
+            _directionBadgeHalf = half;
+        }
+
+        return direction == NoteDirection.Up
+            ? _directionBadgeUp ??= CreateDirectionBadge(-half, half)
+            : _directionBadgeDown ??= CreateDirectionBadge(half, half);
+    }
+
+    private static StreamGeometry CreateDirectionBadge(double tip, double half)
+    {
+        var geometry = new StreamGeometry();
+        using var ctx = geometry.Open();
+        ctx.BeginFigure(new Point(0, tip), true);
+        ctx.LineTo(new Point(half, -tip));
+        ctx.LineTo(new Point(-half, -tip));
+        ctx.EndFigure(true);
+        return geometry;
+    }
+
     // 보스 그림 오른쪽 위 구석에 작은 이름표를 붙인다. 보스 연출 노트에는 방향 삼각형이 붙지 않아서 겹치지 않는다.
     private void DrawBossMarker(DrawingContext context, BossMarker marker, Point center, double width, double height)
     {
-        var (label, color) = marker switch
+        var (label, brush) = marker switch
         {
-            BossMarker.Enter => ("등장", Color.FromRgb(60, 190, 90)),
-            BossMarker.Exit => ("퇴장", Color.FromRgb(210, 80, 80)),
-            BossMarker.Start => ("시작", Color.FromRgb(60, 140, 230)),
-            _ => ("끝", Color.FromRgb(230, 150, 40)),
+            BossMarker.Enter => ("등장", BossEnterBrush),
+            BossMarker.Exit => ("퇴장", BossExitBrush),
+            BossMarker.Start => ("시작", BossStartBrush),
+            _ => ("끝", BossEndBrush),
         };
 
         var text = GetOrCreateBossMarkerText(label);
@@ -380,7 +398,7 @@ public sealed class NoteGridControl : TimelineControlBase
         var top = center.Y - (height / 2);
         var rect = new Rect(left, top, tagWidth, tagHeight);
 
-        context.DrawRectangle(new ImmutableSolidColorBrush(color), BossMarkerPen, rect, 3, 3);
+        context.DrawRectangle(brush, BossMarkerPen, rect, 3, 3);
         context.DrawText(text, new Point(left + padX, top + 0.5));
     }
 
@@ -388,6 +406,11 @@ public sealed class NoteGridControl : TimelineControlBase
     private const double BossMarkerShiftRight = 4;
 
     private static readonly IPen BossMarkerPen = new Pen(Brushes.Black, 1);
+    private static readonly IBrush BossEnterBrush = new ImmutableSolidColorBrush(Color.FromRgb(60, 190, 90));
+    private static readonly IBrush BossExitBrush = new ImmutableSolidColorBrush(Color.FromRgb(210, 80, 80));
+    private static readonly IBrush BossStartBrush = new ImmutableSolidColorBrush(Color.FromRgb(60, 140, 230));
+    private static readonly IBrush BossEndBrush = new ImmutableSolidColorBrush(Color.FromRgb(230, 150, 40));
+    private static readonly RenderOptions IconRenderOptions = new() { BitmapInterpolationMode = BitmapInterpolationMode.HighQuality };
     private readonly Dictionary<string, FormattedText> _bossMarkerTextCache = new();
 
     private FormattedText GetOrCreateBossMarkerText(string label)
@@ -421,7 +444,10 @@ public sealed class NoteGridControl : TimelineControlBase
 
         var totalWidth = IsHorizontalView ? timelineLength : totalLanesThickness;
         var totalHeight = IsHorizontalView ? totalLanesThickness : timelineLength;
+        var range = BeginTimelineRender();
 
+        // 배경은 잘라 그리지 않는다. Avalonia 는 그린 자리만 클릭을 받으므로, 배경이 잘리면
+        // 아직 안 그린 구간을 눌러도 격자가 클릭을 못 받는다.
         context.FillRectangle(Brushes.Black, new Rect(0, 0, totalWidth, totalHeight));
         context.FillRectangle(GridBackgroundBrush, new Rect(0, 0, totalWidth, totalHeight));
 
@@ -442,7 +468,7 @@ public sealed class NoteGridControl : TimelineControlBase
                 thicknessOffset += laneThickness;
         }
 
-        foreach (var line in EnumerateGridLines(timelineLength))
+        foreach (var line in EnumerateGridLines(timelineLength, range))
         {
             var pen = line.Kind switch
             {
@@ -480,80 +506,22 @@ public sealed class NoteGridControl : TimelineControlBase
         }
 
         // 홀드 몸통은 노트보다 먼저 그린다. 머리·꼬리 노트가 몸통 위에 올라와야 한다.
-        DrawHoldBodies(context, lanes, laneThickness, timelineLength);
+        DrawHoldBodies(context, lanes, laneThickness, timelineLength, range);
+        DrawNotes(context, lanes, laneThickness, timelineLength, range);
+        DrawHoldProblems(context, lanes, laneThickness, timelineLength, range);
+    }
 
-        // 배치된 노트 그리기
-        var notes = Notes;
-        var selectedNotes = SelectedNotes;
-        if (!ReferenceEquals(selectedNotes, _lastObservedSelectedNotes))
-        {
-            _lastObservedSelectedNotes = selectedNotes;
-            _cachedSelectedSet = selectedNotes is { Count: > 0 } ? new HashSet<BmsNote>(selectedNotes) : null;
-        }
-        var selectedSet = _cachedSelectedSet;
-        if (notes is not null)
-        {
-            for (var index = 0; index < notes.Count; index++)
-            {
-                var note = notes[index];
+    // 자주 바뀌는 그림(드래그 사각형·번쩍임·재생 커서). 격자 위의 겹 컨트롤이 부른다.
+    protected override void RenderOverlay(DrawingContext context)
+    {
+        var lanes = VisibleLanes;
+        if (lanes is null || lanes.Count == 0)
+            return;
 
-                var laneIndex = FindLaneIndex(lanes, note.LaneId);
-                if (laneIndex == -1) continue;
-
-                var noteTPos = ComputeNoteTPos(note, timelineLength);
-                var noteBrush = GetNoteBrush(note.LaneId);
-                var laneOffset = laneIndex * laneThickness;
-                var blackPen = NoteOutlinePen;
-
-                if (IsHorizontalView)
-                {
-                    if (IsCircleNoteShape)
-                    {
-                        var radius = Math.Min(7.5, (laneThickness - 4) / 2);
-                        var center = new Point(noteTPos, laneOffset + laneThickness / 2);
-                        if (!TryDrawNoteIcon(context, note, center, NoteIconDiameter(laneThickness), laneThickness))
-                            context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
-                    }
-                    else
-                    {
-                        var rect = new Rect(noteTPos - 3, laneOffset + 2, 6, laneThickness - 4);
-                        context.FillRectangle(noteBrush, rect);
-                        context.DrawRectangle(null, blackPen, rect);
-                    }
-                }
-                else
-                {
-                    if (IsCircleNoteShape)
-                    {
-                        var radius = Math.Min(7.5, (laneThickness - 4) / 2);
-                        var center = new Point(laneOffset + laneThickness / 2, noteTPos);
-                        if (!TryDrawNoteIcon(context, note, center, NoteIconDiameter(laneThickness), laneThickness))
-                            context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
-                    }
-                    else
-                    {
-                        var rect = new Rect(laneOffset + 2, noteTPos - 3, laneThickness - 4, 6);
-                        context.FillRectangle(noteBrush, rect);
-                        context.DrawRectangle(null, blackPen, rect);
-                    }
-                }
-
-                if (selectedSet is not null && selectedSet.Contains(note))
-                {
-                    var highlightPen = SelectionPen;
-                    // 그림이 있는 노트는 그림보다 2px 큰 테두리로 감싼다. 없으면 예전 그대로 14px.
-                    var half = 7.0;
-                    if (IsCircleNoteShape && NoteIcons is { } iconMap && iconMap.TryGetValue(note.WavKey, out var selectedIcon))
-                        half = Math.Min((laneThickness / 2) - 1, (NoteIconDiameter(laneThickness) * selectedIcon.Scale / 2) + 2);
-                    var highlightRect = IsHorizontalView
-                        ? new Rect(noteTPos - half, laneOffset + 1, half * 2, laneThickness - 2)
-                        : new Rect(laneOffset + 1, noteTPos - half, laneThickness - 2, half * 2);
-                    context.DrawRectangle(null, highlightPen, highlightRect);
-                }
-            }
-        }
-
-        DrawHoldProblems(context, lanes, laneThickness, timelineLength);
+        var totalLanesThickness = lanes.Count * LaneWidth * HorizontalZoom;
+        var timelineLength = GetTimelineHeight();
+        var totalWidth = IsHorizontalView ? timelineLength : totalLanesThickness;
+        var totalHeight = IsHorizontalView ? totalLanesThickness : timelineLength;
 
         if (_dragStartPoint is { } dragStart && _dragCurrentPoint is { } dragEnd)
         {
@@ -566,11 +534,95 @@ public sealed class NoteGridControl : TimelineControlBase
         DrawPlaybackCursor(context, totalWidth, totalHeight);
     }
 
+    private void DrawNotes(
+        DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength, TimelineRange range)
+    {
+        var notes = Notes;
+        if (notes is null)
+            return;
+
+        var selectedNotes = SelectedNotes;
+        if (!ReferenceEquals(selectedNotes, _lastObservedSelectedNotes))
+        {
+            _lastObservedSelectedNotes = selectedNotes;
+            _cachedSelectedSet = selectedNotes is { Count: > 0 } ? new HashSet<BmsNote>(selectedNotes) : null;
+        }
+
+        var selectedSet = _cachedSelectedSet;
+
+        // 그림·이름표는 레인 폭 안에 들어가므로 이만큼만 여유를 두면 잘리지 않는다.
+        var margin = Math.Max(laneThickness, MinimumNoteCullMargin);
+
+        // 노트마다 넣었다 빼면 그리기 명령이 두 개씩 는다. 한 번만 건다.
+        using (context.PushRenderOptions(IconRenderOptions))
+        {
+            for (var index = 0; index < notes.Count; index++)
+            {
+                var note = notes[index];
+
+                // 시각 계산이 레인 찾기보다 싸고, 대부분의 노트는 여기서 걸러진다.
+                var noteTPos = ComputeNoteTPos(note, timelineLength);
+                if (!range.Contains(noteTPos, margin))
+                    continue;
+
+                var laneIndex = FindLaneIndex(lanes, note.LaneId);
+                if (laneIndex == -1)
+                    continue;
+
+                DrawNote(context, note, noteTPos, laneIndex * laneThickness, laneThickness);
+
+                if (selectedSet is not null && selectedSet.Contains(note))
+                    DrawSelection(context, note, noteTPos, laneIndex * laneThickness, laneThickness);
+            }
+        }
+    }
+
+    private const double MinimumNoteCullMargin = 48.0;
+
+    private void DrawNote(DrawingContext context, BmsNote note, double noteTPos, double laneOffset, double laneThickness)
+    {
+        var noteBrush = GetNoteBrush(note.LaneId);
+
+        if (IsCircleNoteShape)
+        {
+            var radius = Math.Min(7.5, (laneThickness - 4) / 2);
+            var center = IsHorizontalView
+                ? new Point(noteTPos, laneOffset + laneThickness / 2)
+                : new Point(laneOffset + laneThickness / 2, noteTPos);
+
+            if (!TryDrawNoteIcon(context, note, center, NoteIconDiameter(laneThickness), laneThickness))
+                context.DrawEllipse(noteBrush, NoteOutlinePen, center, radius, radius);
+
+            return;
+        }
+
+        var rect = IsHorizontalView
+            ? new Rect(noteTPos - 3, laneOffset + 2, 6, laneThickness - 4)
+            : new Rect(laneOffset + 2, noteTPos - 3, laneThickness - 4, 6);
+
+        context.FillRectangle(noteBrush, rect);
+        context.DrawRectangle(null, NoteOutlinePen, rect);
+    }
+
+    private void DrawSelection(DrawingContext context, BmsNote note, double noteTPos, double laneOffset, double laneThickness)
+    {
+        // 그림이 있는 노트는 그림보다 2px 큰 테두리로 감싼다. 없으면 예전 그대로 14px.
+        var half = 7.0;
+        if (IsCircleNoteShape && NoteIcons is { } iconMap && iconMap.TryGetValue(note.WavKey, out var selectedIcon))
+            half = Math.Min((laneThickness / 2) - 1, (NoteIconDiameter(laneThickness) * selectedIcon.Scale / 2) + 2);
+
+        var highlightRect = IsHorizontalView
+            ? new Rect(noteTPos - half, laneOffset + 1, half * 2, laneThickness - 2)
+            : new Rect(laneOffset + 1, noteTPos - half, laneThickness - 2, half * 2);
+
+        context.DrawRectangle(null, SelectionPen, highlightRect);
+    }
+
     // 홀드 몸통.
     //
     // 양 끝 좌표를 각각 ComputeNoteTPos 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
     // 마디 단위로 선형 보간해 늘리면 BPM 변화나 변박 구간을 지나는 홀드의 끝이 끝 노트와 어긋난다.
-    private void DrawHoldBodies(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength)
+    private void DrawHoldBodies(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength, TimelineRange range)
     {
         var links = HoldLinks;
         if (links is null || links.Count == 0)
@@ -579,6 +631,13 @@ public sealed class NoteGridControl : TimelineControlBase
         for (var i = 0; i < links.Count; i++)
         {
             var link = links[i];
+            var headPos = ComputeNoteTPos(link.Head, timelineLength);
+            var tailPos = ComputeNoteTPos(link.Tail, timelineLength);
+
+            // 머리와 꼬리가 둘 다 화면 밖이어도 몸통이 화면을 가로지를 수 있어 구간으로 본다.
+            if (!range.Overlaps(Math.Min(headPos, tailPos), Math.Max(headPos, tailPos)))
+                continue;
+
             var headLane = FindLaneIndex(lanes, link.Head.LaneId);
             var tailLane = FindLaneIndex(lanes, link.Tail.LaneId);
 
@@ -586,9 +645,6 @@ public sealed class NoteGridControl : TimelineControlBase
             // 몸통이 조용히 사라지지 않도록, 레인이 갈리면 선으로 이어 둔다.
             if (headLane == -1 || tailLane == -1)
                 continue;
-
-            var headPos = ComputeNoteTPos(link.Head, timelineLength);
-            var tailPos = ComputeNoteTPos(link.Tail, timelineLength);
 
             if (headLane == tailLane)
             {
@@ -605,7 +661,7 @@ public sealed class NoteGridControl : TimelineControlBase
         }
     }
 
-    private void DrawHoldProblems(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength)
+    private void DrawHoldProblems(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength, TimelineRange range)
     {
         var problems = HoldProblemNotes;
         if (problems is null || problems.Count == 0)
@@ -614,11 +670,14 @@ public sealed class NoteGridControl : TimelineControlBase
         for (var i = 0; i < problems.Count; i++)
         {
             var note = problems[i];
+            var tPos = ComputeNoteTPos(note, timelineLength);
+            if (!range.Contains(tPos, MinimumNoteCullMargin))
+                continue;
+
             var laneIndex = FindLaneIndex(lanes, note.LaneId);
             if (laneIndex == -1)
                 continue;
 
-            var tPos = ComputeNoteTPos(note, timelineLength);
             var laneOffset = laneIndex * laneThickness;
             var rect = IsHorizontalView
                 ? new Rect(tPos - 10, laneOffset - 1, 20, laneThickness + 2)
@@ -701,7 +760,7 @@ public sealed class NoteGridControl : TimelineControlBase
                 _dragCurrentPoint = point.Position;
                 _isAdditiveDrag = additive;
                 e.Pointer.Capture(this);
-                InvalidateVisual();
+                InvalidateOverlay();
             }
             return;
         }
@@ -781,7 +840,7 @@ public sealed class NoteGridControl : TimelineControlBase
             return;
 
         _dragCurrentPoint = e.GetCurrentPoint(this).Position;
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     private void OnPointerReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
@@ -792,6 +851,7 @@ public sealed class NoteGridControl : TimelineControlBase
         _dragStartPoint = null;
         _dragCurrentPoint = null;
         e.Pointer.Capture(null);
+        InvalidateOverlay();
 
         var lanes = VisibleLanes;
         var notes = Notes;

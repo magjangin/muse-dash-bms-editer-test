@@ -78,10 +78,10 @@
                        Text="마디 범위" HorizontalAlignment="Right" VerticalAlignment="Center" />
             <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,*" ColumnSpacing="8">
                 <NumericUpDown Grid.Column="0" Value="{Binding MeasureFrom}"
-                               Minimum="0" Maximum="999" Increment="1" FormatString="0" />
+                               Minimum="0" Maximum="9999" Increment="1" FormatString="0" />
                 <TextBlock Grid.Column="1" Text="~" VerticalAlignment="Center" />
                 <NumericUpDown Grid.Column="2" Value="{Binding MeasureTo}"
-                               Minimum="0" Maximum="999" Increment="1" FormatString="0" />
+                               Minimum="0" Maximum="9999" Increment="1" FormatString="0" />
             </Grid>
 
             <TextBlock Grid.Row="2" Grid.Column="0"

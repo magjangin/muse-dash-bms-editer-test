@@ -78,6 +78,10 @@ public sealed class NoteIconCatalog : IDisposable
     private readonly string? _userFolder;
     private readonly Dictionary<string, NoteIcon?> _byUid = new(StringComparer.Ordinal);
 
+    // 그림은 백그라운드에서 읽는다. 사전과 Dispose 가 엇갈리지 않게 잠근다.
+    private readonly object _gate = new();
+    private bool _disposed;
+
     public NoteIconCatalog(string folder, string? userFolder = null)
     {
         _folder = folder;
@@ -230,30 +234,36 @@ public sealed class NoteIconCatalog : IDisposable
 
     private NoteIcon? Find(string uid)
     {
-        if (_byUid.TryGetValue(uid, out var cached))
-            return cached;
-
-        NoteIcon? icon = null;
-        var baseUid = SpeedOneOf(uid);
-        try
+        lock (_gate)
         {
-            // 속도별 그림 파일이 따로 있으면 그것을, 없으면 속도 1 그림을 쓴다.
-            using var source = OpenSource(uid) ?? (baseUid == uid ? null : OpenSource(baseUid));
-            if (source is not null)
+            if (_disposed)
+                return null;
+
+            if (_byUid.TryGetValue(uid, out var cached))
+                return cached;
+
+            NoteIcon? icon = null;
+            var baseUid = SpeedOneOf(uid);
+            try
             {
-                var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
-                if (prepared is not null)
-                    icon = new NoteIcon(prepared, ScaleFor(baseUid), DirectionOf(baseUid), BossMarkerOf(uid));
+                // 속도별 그림 파일이 따로 있으면 그것을, 없으면 속도 1 그림을 쓴다.
+                using var source = OpenSource(uid) ?? (baseUid == uid ? null : OpenSource(baseUid));
+                if (source is not null)
+                {
+                    var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
+                    if (prepared is not null)
+                        icon = new NoteIcon(prepared, ScaleFor(baseUid), DirectionOf(baseUid), BossMarkerOf(uid));
+                }
             }
-        }
-        catch (Exception)
-        {
-            // 깨진 그림 한 장이 에디터를 멈추게 하지 않는다. 그 노트는 단색으로 그려진다.
-            icon = null;
-        }
+            catch (Exception)
+            {
+                // 깨진 그림 한 장이 에디터를 멈추게 하지 않는다. 그 노트는 단색으로 그려진다.
+                icon = null;
+            }
 
-        _byUid[uid] = icon;
-        return icon;
+            _byUid[uid] = icon;
+            return icon;
+        }
     }
 
     // 사용자 폴더, exe 옆 폴더 순으로 쓰고, 없으면 exe 안에 넣어 둔 그림(로컬/개인용 빌드, EmbedNoteIcons=true)을 쓴다.
@@ -276,13 +286,19 @@ public sealed class NoteIconCatalog : IDisposable
 
     public void Dispose()
     {
-        var disposed = new HashSet<Bitmap>();
-        foreach (var icon in _byUid.Values)
+        lock (_gate)
         {
-            if (icon is not null && disposed.Add(icon.Image))
-                icon.Image.Dispose();
+            _disposed = true;
+
+            var disposed = new HashSet<Bitmap>();
+            foreach (var icon in _byUid.Values)
+            {
+                if (icon is not null && disposed.Add(icon.Image))
+                    icon.Image.Dispose();
+            }
+
+            _byUid.Clear();
         }
-        _byUid.Clear();
     }
 }
 

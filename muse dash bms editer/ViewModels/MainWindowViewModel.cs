@@ -181,7 +181,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public MainWindowViewModel()
     {
-        _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        // 커서를 겹 컨트롤로 떼어 내서 한 칸 움직이는 비용이 거의 없어졌다. 화면 주사율에 맞춘다.
+        // 키음을 울리는 간격도 이 값이라, 줄인 만큼 노트와 소리의 어긋남도 줄어든다.
+        _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _playbackTimer.Tick += (_, _) => UpdatePlaybackPosition();
 
         _playbackSpeedDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
@@ -348,8 +350,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isDirty;
 
     // 에셋 내장 여부로 1번(개인용) / 2번(릴리즈용) 판별
-    public static bool IsPersonalEdition =>
-        typeof(MainWindowViewModel).Assembly.GetManifestResourceNames().Any(n => n.StartsWith("note_icons/"));
+    // 한 번만 본다. 개인용 빌드는 리소스 이름이 수백 개라 제목을 고칠 때마다 훑을 값이 아니다.
+    public static bool IsPersonalEdition { get; } =
+        typeof(MainWindowViewModel).Assembly.GetManifestResourceNames().Any(n => n.StartsWith("note_icons/", StringComparison.Ordinal));
 
     public static string EditionLabel => IsPersonalEdition ? "1. 개인용" : "2. 릴리즈용";
 
@@ -394,6 +397,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _gridSyncFlashTimer.Stop();
         _audioPlayer?.Dispose();
         _keySoundPlayer.Dispose();
+
+        // 진행 중인 그림 읽기의 결과는 버린다.
+        _noteIconGeneration++;
         _noteIconCatalog.Dispose();
+        DisposeRetiredNoteIconCatalogs();
     }
 }

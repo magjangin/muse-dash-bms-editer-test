@@ -350,11 +350,17 @@ public static class NoteIconImporter
     public static SKBitmap? TrimTransparent(SKBitmap source)
     {
         int minX = source.Width, minY = source.Height, maxX = -1, maxY = -1;
+
+        // GetPixel 은 픽셀마다 네이티브 호출이다. 32비트 형식이면 메모리를 바로 읽는다(알파는 넷째 바이트).
+        var pixels = source.ColorType is SKColorType.Rgba8888 or SKColorType.Bgra8888 ? source.GetPixelSpan() : default;
+        var rowBytes = source.RowBytes;
+
         for (var y = 0; y < source.Height; y++)
         {
             for (var x = 0; x < source.Width; x++)
             {
-                if (source.GetPixel(x, y).Alpha == 0)
+                var alpha = pixels.IsEmpty ? source.GetPixel(x, y).Alpha : pixels[(y * rowBytes) + (x * 4) + 3];
+                if (alpha == 0)
                     continue;
 
                 if (x < minX) minX = x;
