@@ -7,12 +7,12 @@
 > 1. **1번: 개인용 바이너리 (`publish/personal/muse dash bms editer 1.exe`)**:
 >    - **에셋 100% 영구 내장 단일 파일**: `EmbedNoteIcons=true` 옵션으로 빌드되어 모든 게임 스프라이트(120여 개 PNG)가 exe 내부에 완전히 임베드된 **순수 단일 실행 파일**입니다.
 >    - **외부 폴더 절대 금지**: `publish/personal/` 디렉터리에는 외부 `note_icons/` 폴더를 복사하지 않고 오직 `muse dash bms editer 1.exe` 단 하나만 존재해야 합니다.
->    - **시각적 식별**: 앱/창 아이콘은 **골드 앰버 + 숫자 1 뱃지**(`Assets/icon_personal.ico`), 창 제목에는 `[1. 개인용]` 접두사가 자동 표기됩니다.
+>    - **시각적 식별**: 앱/창 아이콘은 **골드 앰버 + 숫자 1 뱃지**(`Assets/icon_personal.ico`), 창 제목 끝에 `(1. 개인용)` 이 자동 표기됩니다.
 >    - **보안 및 저작권**: 게임 저작권 에셋이 내장되어 있으므로 **Git 추적에서 100% 영구 제외**(`.gitignore`)되어 있습니다.
 >
 > 2. **2번: 릴리즈용 바이너리 (`publish/release/muse dash bms editer 2.exe`)**:
 >    - **외부 폴더 분리형 패키지**: exe 자체는 에셋이 미내장된 순수 바이너리(`EmbedNoteIcons=false`)이며, **외부 `note_icons/` 폴더가 반드시 함께 있는 구성**입니다.
->    - **시각적 식별**: 앱/창 아이콘은 **사이언 블루 + 숫자 2 뱃지**(`Assets/icon_release.ico`), 창 제목에는 `[2. 릴리즈용]` 접두사가 자동 표기됩니다.
+>    - **시각적 식별**: 앱/창 아이콘은 **사이언 블루 + 숫자 2 뱃지**(`Assets/icon_release.ico`), 창 제목 끝에 `(2. 릴리즈용)` 이 자동 표기됩니다.
 >    - **용도**: 공개 깃허브 Releases 배포용 또는 외부 에셋 폴더를 직접 관리하는 사용자 대상 패키지입니다.
 >
 > 3. **3번: 퍼블리싱 전 클린 빌드 및 어셈블리명 고정 필수**:
@@ -63,6 +63,14 @@ muse dash bms editer/
 3. **타임라인 수식 표준**:
    - 틱(tick) 기반 시간 변환 공식 `time = tick * 240 / bpm`을 [`ChartTimeline.cs`](file:///h:/source/repos/muse%20dash%20bms%20editer/muse%20dash%20bms%20editer/Services/ChartTimeline.cs) 한곳에서 통합 관리하여 변속 구간 및 변박 마디에서도 격자와 재생 위치가 1ms 단위로 일치합니다.
 
+4. **타임라인 렌더링 (재생 중 프레임 유지의 핵심)**:
+   - 커서·격자 맞춤 번쩍임·드래그 사각형은 [`TimelineControlBase`](muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs) 의 **겹 컨트롤(`OverlayLayer`)** 이 따로 그립니다. 재생 중에 격자·파형을 다시 기록하지 않기 위해서입니다 (`RenderOverlay` 를 재정의).
+   - 격자·파형은 `BeginTimelineRender()` 가 돌려준 구간만 그립니다. 뷰포트를 모르면(비트맵으로 뜰 때, ScrollViewer 밖) 전체를 그려 결과가 달라지지 않습니다.
+   - 실측(180초 · 2,688노트 · 헤드리스 Debug): 커서가 화면에 있을 때 프레임 **31~34ms → 약 1.2ms**, 스크롤 약 9.5ms → 약 5.5ms.
+5. **재생 경로에서 UI 스레드를 막지 않기**:
+   - `KeySoundPlayer.Play` 는 재생 타이머 안에서 불리므로 디스크를 건드리면 안 됩니다. 캐시에 없으면 백그라운드로 넘기고, 없는 파일은 2초 동안 다시 보지 않습니다.
+   - OGG 파형 계산과 노트 그림 읽기도 백그라운드입니다. 노트 그림은 준비되는 대로 교체되므로 잠깐 단색으로 보일 수 있습니다(정상).
+
 ---
 
 ## 4. 커스텀 에셋 주입 파이프라인 & UID 규칙
@@ -87,6 +95,15 @@ muse dash bms editer/
   - 해결: 빌드 프로필(`personal.pubxml`, `release.pubxml`)에 `<AssemblyName>`을 각각 `muse dash bms editer 1`, `muse dash bms editer 2`로 지정하여 .NET SDK가 처음부터 일치된 매니페스트로 빌드하도록 구성.
 * ❌ **기존 산출물 덮어쓰기 빌드**:
   - `PublishSingleFile` 환경에서 기존 exe가 남아있는 상태로 덮어쓰기 빌드를 진행할 경우 구버전 매니페스트 캐시나 임베딩 충돌이 발생할 수 있음. 퍼블리싱 전 반드시 기존 파일 삭제 후 재패키징 필요.
+
+* ❌ **재생 커서를 격자와 같은 컨트롤에 그리기**:
+  - 커서가 움직일 때마다 곡 전체의 격자선·노트·파형이 다시 기록되어 프레임이 그대로 떨어졌습니다. `PlaybackPositionSeconds` 를 `AffectsRender` 에 다시 넣지 마십시오.
+* ⚠️ **뷰포트 컬링의 함정 세 가지** (예전 컬링이 "불안정"하다고 되돌려진 적이 있습니다):
+  - `EffectiveViewportChanged` 는 값이 **바뀔 때만** 옵니다. 첫 레이아웃에서는 안 올 수 있어 첫 렌더는 `EstimateViewport()` 로 직접 구합니다.
+  - 스크롤하면 컨트롤의 `Bounds` 가 바뀌어 Avalonia 가 다시 그립니다. 그러니 뷰포트 여유분(`Overscan`)을 크게 잡아도 스크롤 비용만 늘어납니다.
+  - **배경 사각형은 자르면 안 됩니다.** Avalonia 는 그린 자리만 클릭을 받습니다. 배경까지 자르면 아직 안 그린 구간이 클릭되지 않습니다.
+* ❌ **`avares://` 경로에 어셈블리 이름 박기**:
+  - 배포 프로필의 `<AssemblyName>` 이 `muse dash bms editer 1` / `2` 라 고정 이름으로는 배포본에서만 그림을 못 찾았고, `try/catch` 에 묻혀 조용히 기본 아이콘이 떴습니다. `Assembly.GetName().Name` 을 쓰십시오.
 
 ---
 

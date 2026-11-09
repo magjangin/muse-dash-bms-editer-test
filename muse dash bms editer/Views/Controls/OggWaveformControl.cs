@@ -68,13 +68,13 @@ public sealed class OggWaveformControl : TimelineControlBase
         }
     }
 
-    private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
-    private static readonly Pen WavePen = new(new ImmutableSolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
+    private static readonly IPen CenterLinePen = new ImmutablePen(Brushes.DimGray.ToImmutable(), 1);
+    private static readonly IPen WavePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
     private static readonly IBrush WaveFillBrush = new ImmutableSolidColorBrush(Color.FromArgb(125, 120, 150, 135));
     private static readonly IBrush WaveformBackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(15, 20, 20));
-    private static readonly IPen WaveformSubBeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1);
-    private static readonly IPen WaveformBeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
-    private static readonly IPen WaveformMeasurePen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
+    private static readonly IPen WaveformSubBeatPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1);
+    private static readonly IPen WaveformBeatPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
+    private static readonly IPen WaveformMeasurePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
 
     public override void Render(DrawingContext context)
     {
@@ -272,7 +272,7 @@ public sealed class OggWaveformControl : TimelineControlBase
     {
         var pens = new IPen[146];
         for (var alpha = 25; alpha < pens.Length; alpha++)
-            pens[alpha] = new Pen(new ImmutableSolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
+            pens[alpha] = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
         return pens;
     }
 

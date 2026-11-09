@@ -184,7 +184,7 @@ public sealed class NoteGridControl : TimelineControlBase
     }
 
     // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
-    private static readonly Pen NoteOutlinePen = new(Brushes.Black, 1);
+    private static readonly IPen NoteOutlinePen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
 
     private static readonly IBrush ScratchNoteBrush = new ImmutableSolidColorBrush(Color.FromRgb(230, 40, 40));
     private static readonly IBrush BlackKeyNoteBrush = new ImmutableSolidColorBrush(Color.FromRgb(40, 140, 230));
@@ -200,27 +200,27 @@ public sealed class NoteGridControl : TimelineControlBase
 
     // 격자 펜과 배경도 매 프레임 새로 만들 이유가 없다.
     private static readonly IBrush GridBackgroundBrush = new ImmutableSolidColorBrush(Color.FromArgb(40, 30, 60, 120));
-    private static readonly IPen LanePen = new Pen(Brushes.DimGray, 1);
-    private static readonly IPen SubBeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
-    private static readonly IPen BeatPen = new Pen(new ImmutableSolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
-    private static readonly IPen MeasurePen = new Pen(Brushes.White, 1.5);
+    private static readonly IPen LanePen = new ImmutablePen(Brushes.DimGray.ToImmutable(), 1);
+    private static readonly IPen SubBeatPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
+    private static readonly IPen BeatPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
+    private static readonly IPen MeasurePen = new ImmutablePen(Brushes.White.ToImmutable(), 1.5);
     private static readonly IBrush LaneHeaderBrush = new ImmutableSolidColorBrush(Color.FromArgb(140, 200, 200, 200));
     private static readonly IBrush DragFillBrush = new ImmutableSolidColorBrush(Color.FromArgb(60, 255, 220, 60));
-    private static readonly IPen DragOutlinePen = new Pen(Brushes.Yellow, 1);
+    private static readonly IPen DragOutlinePen = new ImmutablePen(Brushes.Yellow.ToImmutable(), 1);
     private static readonly Typeface LaneHeaderTypeface = new("Inter, Arial, sans-serif");
 
     // 선택한 노트를 둘러 그리는 펜.
     //
     // 노트 자체보다 넓은 사각형이라 테두리는 노트 위가 아니라 **검은 바탕 위에** 그려진다.
     // 그래서 스크래치 레인(16)의 붉은 노트(230,40,40)와 색이 가까워도 테두리는 살아 있다.
-    private static readonly Pen SelectionPen = new(Brushes.Red, 2);
+    private static readonly IPen SelectionPen = new ImmutablePen(Brushes.Red.ToImmutable(), 2);
 
     // 홀드 몸통 폭. 레인 폭 전체를 채우면 몸통 위에 겹친 다른 노트가 묻힌다.
     public const double HoldBodyWidthRatio = 0.44;
 
     // 짝이 어긋난 노트의 테두리. 선택 테두리(빨강 실선)와 헷갈리지 않게 주황 점선으로 둔다.
-    private static readonly Pen HoldProblemPen =
-        new(new ImmutableSolidColorBrush(Color.FromRgb(255, 120, 0)), 2, DashStyle.Dash);
+    private static readonly IPen HoldProblemPen =
+        new ImmutablePen(new ImmutableSolidColorBrush(Color.FromRgb(255, 120, 0)), 2, new ImmutableDashStyle(new double[] { 2, 2 }, 1));
 
     // 불변 브러시로 둔다. 보통 브러시는 만든 스레드만 쓸 수 있어서, 캐시가 UI 스레드 밖에서
     // 한 번이라도 채워지면 그 뒤의 렌더가 통째로 터진다(테스트에서 실제로 걸렸다).
@@ -251,7 +251,7 @@ public sealed class NoteGridControl : TimelineControlBase
     {
         if (!HoldLinkPens.TryGetValue(kind, out var pen))
         {
-            pen = new Pen(GetHoldBrush(kind), 4);
+            pen = new ImmutablePen(GetHoldBrush(kind), 4);
             HoldLinkPens[kind] = pen;
         }
 
@@ -405,7 +405,7 @@ public sealed class NoteGridControl : TimelineControlBase
     // 이름표를 그림 오른쪽 끝보다 이만큼 더 오른쪽으로 둔다. 보스 그림이 작아서 글자가 몸을 가린다.
     private const double BossMarkerShiftRight = 4;
 
-    private static readonly IPen BossMarkerPen = new Pen(Brushes.Black, 1);
+    private static readonly IPen BossMarkerPen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
     private static readonly IBrush BossEnterBrush = new ImmutableSolidColorBrush(Color.FromRgb(60, 190, 90));
     private static readonly IBrush BossExitBrush = new ImmutableSolidColorBrush(Color.FromRgb(210, 80, 80));
     private static readonly IBrush BossStartBrush = new ImmutableSolidColorBrush(Color.FromRgb(60, 140, 230));
@@ -426,7 +426,7 @@ public sealed class NoteGridControl : TimelineControlBase
     }
 
     private static readonly IBrush DirectionBadgeBrush = new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
-    private static readonly IPen DirectionBadgePen = new Pen(Brushes.Black, 1);
+    private static readonly IPen DirectionBadgePen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
 
     // 그림이 있는 노트의 지름. 단색 동그라미(15px)보다 키워서 그림이 알아볼 만하게 한다.
     // 이웃 노트와의 간격은 줌과 BPM 에 달려 있어 여기서 맞추지 않는다. (docs/plans/note_circle_icon.md §1-2)

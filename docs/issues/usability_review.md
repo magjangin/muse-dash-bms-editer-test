@@ -8,6 +8,7 @@
 > * 고쳐지기 전까지의 우회법은 [🧯 troubleshooting.md](../guides/troubleshooting.md) 에 있습니다.
 > * **진행 표시 (2026-11-07, 커밋 `10d0e0e` 기준 코드 확인)** — ✅ = 고쳐짐, ◐ = 일부만 고쳐짐. 표시가 없는 항목은 이번에 다시 확인하지 않았습니다.
 >   ✅ S-7 · ✅ U-10 · ◐ U-11 (`G`·`D` 키는 생김, ✏️ 전환 키·숫자키 격자 분할은 아직) · ✅ U-12 (오프셋 반영은 `10d0e0e`, 길이 공식은 그 뒤 `TimelineControlBase.ComputeTimelineLength` 한 곳으로) · ✅ U-13 ("파일 없음"은 기억하지 않음) · ◐ U-18 (통계·컨트롤 패널 `Esc` 닫기만)
+> * **진행 표시 (2026-11-09, 커밋 `b253759`)** — ◐ S-1 (로그·계속 쓰기·믹서 예외 격리는 됨, **비상 저장은 S-3 과 함께 남음**) · ✅ S-2 · ✅ U-1 · ◐ U-2 (오른쪽 키음 목록만, 🎨 팔레트는 그대로) · ✅ U-3 · ✅ U-4 · ✅ U-5 · ✅ U-6 · ✅ U-7 · ◐ U-16 (정지 시 키음 끊기만, 음량 조절은 없음) · ◐ U-18 (같은 칸 다시 찍기 · 키음 여러 개 추가 · 검색 마디 범위)
 
 **두 묶음으로 나눕니다.**
 
@@ -341,10 +342,10 @@
 
 | 무엇 | 어디 | 왜 신경 쓰나 |
 |:---|:---|:---|
-| 재생 중 **격자 전체를 초당 30번** 다시 그림 (커서가 격자와 같은 컨트롤) | [`TimelineControlBase`](../../muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs) `AffectsRender` 의 `PlaybackPositionSeconds` | 되돌렸던 뷰포트 컬링(→ [known_issues D](known_issues.md#-d-뷰포트-컬링)) 대신 **커서만 얇은 겹 컨트롤로 떼면** 렌더 결과를 흔들지 않고 부담이 사라집니다 |
+| ✅ (`b253759`) 재생 중 **격자 전체를 초당 30번** 다시 그림 (커서가 격자와 같은 컨트롤) | [`TimelineControlBase`](../../muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs) `AffectsRender` 의 `PlaybackPositionSeconds` | 되돌렸던 뷰포트 컬링(→ [known_issues D](known_issues.md#-d-뷰포트-컬링)) 대신 **커서만 얇은 겹 컨트롤로 떼면** 렌더 결과를 흔들지 않고 부담이 사라집니다 |
 | HEADER 값이 두 곳에 나뉨 — BPM·오프셋만 `Chart.Header` 에 바로 들어가고 나머지는 화면 속성에만 있음 | [`BmsWriter.Write`](../../muse%20dash%20bms%20editer/Services/BmsWriter.cs) 가 헤더 값 7개를 따로 받음 | "가져오기를 되돌리면 레벨·RANK 가 엉뚱해지던" 버그가 이 구조에서 나왔습니다. 전부 `Chart.Header` 로 모으면 이런 종류가 사라집니다. 🛡️ S-3 자동 저장도 헤더를 어디서 읽을지 이 정리를 먼저 하면 간단해집니다 |
 | 되돌리기가 **이름 문자열**(`"건반 BMS 가져오기"`)을 비교해 문서 전체 복원 여부를 정함. 문서 전체 복사본을 편집마다 뜸 | [`MainWindowViewModel.History.cs`](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.History.cs) | 이름을 바꾸면 조용히 깨집니다. 스냅샷에 "문서 복원" 플래그를 두면 둘 다 풀립니다 |
-| 마디 복사를 되돌리면 원래 고른 노트가 아니라 **빈 선택**이 돌아옴 | [`CopyNotesByMeasureOffset`](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Editing.cs) — 선택을 기록보다 먼저 바꿈 | 두 줄 순서만 바꾸면 됩니다 |
+| ✅ (`b253759`) 마디 복사를 되돌리면 원래 고른 노트가 아니라 **빈 선택**이 돌아옴 | [`CopyNotesByMeasureOffset`](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Editing.cs) — 선택을 기록보다 먼저 바꿈 | 두 줄 순서만 바꾸면 됩니다 |
 | 테스트 패키지가 오래됨 (`Microsoft.NET.Test.Sdk` 17.3.3 · `xunit` 2.4.2). 마디 복사 · 검색 창 뷰모델 · WAV 디코더는 테스트가 없음 | [테스트 csproj](../../muse%20dash%20bms%20editer.Tests/muse%20dash%20bms%20editer.Tests.csproj) | |
 | 낡은 글 — 배포 프로필 주석의 옛 경로(`bms editer/bms editer.csproj`), plans 문서의 "이 저장소는 git 이 없어", 코드 주석이 가리키는 없는 문서(`hold_pairing_spec.md` · `game_profiles.md`, D-5) | [win-x64.pubxml](../../muse%20dash%20bms%20editer/Properties/PublishProfiles/win-x64.pubxml) · [muse_dash_specialization.md §7](../plans/muse_dash_specialization.md) | |
 

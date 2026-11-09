@@ -132,13 +132,16 @@ public sealed class TimelineRenderingTests
     private static WriteableBitmap FrameWhere(Window window, Func<WriteableBitmap, bool> ready)
     {
         WriteableBitmap? frame = null;
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < 100; attempt++)
         {
             Pump();
 
-            // 아직 한 장도 안 그려졌으면 null 이 온다.
+            // 아직 한 장도 안 그려졌으면 null 이 온다. 첫 프레임은 렌더 스레드를 조금 기다려야 나올 때가 있다.
             if (window.CaptureRenderedFrame() is not { } captured)
+            {
+                System.Threading.Thread.Sleep(20);
                 continue;
+            }
 
             frame = captured;
             if (ready(frame))

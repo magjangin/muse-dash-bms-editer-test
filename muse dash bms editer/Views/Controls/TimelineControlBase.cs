@@ -450,13 +450,13 @@ public abstract class TimelineControlBase : Control
         IsHorizontalView ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
 
     private static readonly IPen PlaybackCursorGlowPen =
-        new Pen(new ImmutableSolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
+        new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
     private static readonly IPen PlaybackCursorPen =
-        new Pen(new ImmutableSolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
+        new ImmutablePen(new ImmutableSolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
     private static readonly IBrush GridSyncFlashFillBrush =
         new ImmutableSolidColorBrush(Color.FromArgb(36, 80, 255, 140));
     private static readonly IPen GridSyncFlashOutlinePen =
-        new Pen(new ImmutableSolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2);
+        new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2);
 
     protected void DrawPlaybackCursor(DrawingContext context, double width, double height)
     {
