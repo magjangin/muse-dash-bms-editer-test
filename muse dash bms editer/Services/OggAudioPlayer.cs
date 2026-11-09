@@ -54,6 +54,19 @@ public sealed partial class OggAudioPlayer : IDisposable
         };
     }
 
+    // 장치가 넘겨준 버퍼를 끝까지 재생했는지.
+    //
+    // 곡 끝 판정을 "커서 >= 곡 길이" 로만 하면, 재생 시작 위치를 프레임으로 내릴 때 생긴 오차나
+    // 드라이버가 마지막 몇 샘플을 위치로 안 알려 주는 경우에 커서가 곡 끝 바로 앞에서 멈춘 채
+    // 재생 상태가 영영 풀리지 않는다.
+    public bool IsPlaybackFinished =>
+        _waveOut != IntPtr.Zero
+        && _headerHandle.IsAllocated
+        && (Marshal.ReadInt32(_headerHandle.AddrOfPinnedObject(), HeaderFlagsOffset) & WHDR_DONE) != 0;
+
+    private const int WHDR_DONE = 0x00000001;
+    private static readonly int HeaderFlagsOffset = (int)Marshal.OffsetOf<WaveHeader>(nameof(WaveHeader.Flags));
+
     public void Play(double startSeconds, double speed = 1.0)
     {
         Stop();

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Platform;
@@ -35,6 +36,16 @@ public sealed class VideoPreviewControl : Control, IDisposable
     public VideoPreviewControl()
     {
         ClipToBounds = true;
+        EffectiveViewportChanged += OnEffectiveViewportChanged;
+    }
+
+    // 스크롤로 보이는 부분. 네이티브 창이라 Avalonia 의 클립이 안 먹어서 직접 잘라야 한다.
+    private Rect? _effectiveViewport;
+
+    private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
+    {
+        _effectiveViewport = e.EffectiveViewport;
+        UpdateBounds();
     }
 
     public override void Render(DrawingContext context)
@@ -129,7 +140,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
     // 마지막으로 WebView2 에 실제로 보낸 시각. 너무 자주 보내지 않으려고 기억해 둔다.
     private double _lastSyncedSeconds = double.NegativeInfinity;
 
-    // 재생 중 커서 위치가 바뀔 때마다 불린다(33ms마다, 초당 30번).
+    // 재생 중 커서 위치가 바뀔 때마다 불린다(16ms마다, 초당 약 60번).
     //
     // 예전에는 그때마다 ExecuteScriptAsync 를 보내서 초당 30번 IPC 왕복이 돌았다.
     // 오차 검사는 어차피 JS 안에서 하므로 **보낼 필요 없는 호출까지 전부 나갔다.**
@@ -239,6 +250,13 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     private void OnLayoutUpdated(object? sender, EventArgs e) => UpdateBounds();
 
+    // 마지막으로 WebView2 에 넘긴 값. 안 바뀌었으면 COM 호출을 하지 않는다.
+    //
+    // LayoutUpdated 는 창 어디든 레이아웃이 돌 때마다 온다. 그때마다 Bounds 대입과
+    // NotifyParentWindowPositionChanged 로 프로세스 간 호출을 두 번씩 하고 있었다.
+    private DrawingRectangle? _lastBounds;
+    private bool _lastIsVisible;
+
     private void UpdateBounds()
     {
         if (_controller is null)
@@ -252,14 +270,25 @@ public sealed class VideoPreviewControl : Control, IDisposable
         if (origin is null)
             return;
 
+        // 스크롤로 가려진 만큼 잘라 넣는다. 안 자르면 오른쪽 패널을 스크롤할 때 영상이 툴바 위로 삐져나온다.
+        var visible = new Rect(Bounds.Size);
+        if (_effectiveViewport is { } viewport)
+            visible = visible.Intersect(viewport);
+
         var scale = topLevel.RenderScaling;
         var bounds = new DrawingRectangle(
-            (int)Math.Round(origin.Value.X * scale),
-            (int)Math.Round(origin.Value.Y * scale),
-            Math.Max(1, (int)Math.Round(Bounds.Width * scale)),
-            Math.Max(1, (int)Math.Round(Bounds.Height * scale)));
+            (int)Math.Round((origin.Value.X + visible.X) * scale),
+            (int)Math.Round((origin.Value.Y + visible.Y) * scale),
+            Math.Max(1, (int)Math.Round(visible.Width * scale)),
+            Math.Max(1, (int)Math.Round(visible.Height * scale)));
+        var isVisible = IsEffectivelyVisible && visible.Width > 0 && visible.Height > 0;
 
-        _controller.IsVisible = IsEffectivelyVisible && Bounds.Width > 0 && Bounds.Height > 0;
+        if (_lastBounds == bounds && _lastIsVisible == isVisible)
+            return;
+
+        _lastBounds = bounds;
+        _lastIsVisible = isVisible;
+        _controller.IsVisible = isVisible;
         _controller.Bounds = bounds;
         _controller.NotifyParentWindowPositionChanged();
     }

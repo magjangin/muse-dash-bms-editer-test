@@ -91,7 +91,9 @@ public static partial class BmsParser
         }
 
         var directory = Path.GetDirectoryName(filePath) ?? "";
-        var mediaPathIndex = BuildFileNameIndex(directory);
+
+        // 적힌 경로에 파일이 없을 때만 만든다. 대부분의 차트는 적힌 그대로라 폴더를 훑을 일이 없다.
+        var mediaPathIndex = new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory));
 
         // 파일을 바이트로 한 번만 읽고 인코딩을 가려낸다. 어느 인코딩으로 읽었는지는
         // 결과에 실어 보내, 저장할 때 그대로 되돌려 쓴다.
@@ -105,6 +107,9 @@ public static partial class BmsParser
         {
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
+
+            // 데이터 줄(#00111:...)은 2단계 몫이다. 헤더 정규식 열 개를 줄마다 헛돌리지 않는다.
+            if (line.Length > 1 && char.IsAsciiDigit(line[1])) continue;
 
             var titleMatch = TitleRegex().Match(line);
             if (titleMatch.Success)
@@ -136,7 +141,7 @@ public static partial class BmsParser
                 if (double.TryParse(extendedBpmMatch.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tableBpm)
                     && tableBpm > 0)
                 {
-                    chart.BpmTable[extendedBpmMatch.Groups[1].Value.ToUpper()] = tableBpm;
+                    chart.BpmTable[extendedBpmMatch.Groups[1].Value.ToUpperInvariant()] = tableBpm;
                 }
                 continue;
             }
@@ -183,7 +188,7 @@ public static partial class BmsParser
             var wavMatch = WavRegex().Match(line);
             if (wavMatch.Success)
             {
-                var key = wavMatch.Groups[1].Value.ToUpper();
+                var key = wavMatch.Groups[1].Value.ToUpperInvariant();
                 var wavFile = wavMatch.Groups[2].Value.Trim();
 
                 if (key.Length == 3)
@@ -231,7 +236,10 @@ public static partial class BmsParser
             }
 
             var dataMatch = DataRegex().Match(line);
-            if (!dataMatch.Success)
+
+            // 숫자가 int 범위를 넘는 마디 번호. 줄 하나 때문에 파일 전체를 못 여는 일이 없게 보존줄로 넘긴다.
+            var measureNum = 0;
+            if (!dataMatch.Success || !int.TryParse(dataMatch.Groups[1].Value, out measureNum))
             {
                 // 갈래를 나누는 제어 줄
                 if (ControlFlowRegex().IsMatch(line))
@@ -265,7 +273,6 @@ public static partial class BmsParser
                 continue;
             }
 
-            var measureNum = int.Parse(dataMatch.Groups[1].Value);
             var channel = dataMatch.Groups[2].Value; // 예: "11", "12" ...
             var dataStr = dataMatch.Groups[3].Value.Trim();
             currentMeasure = measureNum;
@@ -301,7 +308,7 @@ public static partial class BmsParser
             {
                 if (i + chunkSize <= dataStr.Length)
                 {
-                    chunks.Add(dataStr.Substring(i, chunkSize).ToUpper());
+                    chunks.Add(dataStr.Substring(i, chunkSize).ToUpperInvariant());
                 }
             }
 
@@ -484,14 +491,14 @@ public static partial class BmsParser
 
             for (var i = 0; i < dataStr.Length; i += 2)
             {
-                var k = dataStr.Substring(i, 2).ToUpper();
+                var k = dataStr.Substring(i, 2).ToUpperInvariant();
                 if (k != "00" && wavTable.ContainsKey(k))
                     matchCount2++;
             }
 
             for (var i = 0; i < dataStr.Length; i += 3)
             {
-                var k = dataStr.Substring(i, 3).ToUpper();
+                var k = dataStr.Substring(i, 3).ToUpperInvariant();
                 if (k != "000" && wavTable.ContainsKey(k))
                     matchCount3++;
             }
@@ -505,14 +512,31 @@ public static partial class BmsParser
         return 2;
     }
 
+    private const int MaxMediaSearchDepth = 3;
+    private const int MaxMediaSearchFiles = 100_000;
+
     private static Dictionary<string, string> BuildFileNameIndex(string directory)
     {
         var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (!Directory.Exists(directory))
             return index;
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        // 권한 없는 폴더(드라이브 맨 위의 System Volume Information 등) 하나 때문에 차트를 못 열면 안 된다.
+        // 깊이와 개수도 막아 둔다. 드라이브 맨 위에 둔 차트를 열면 디스크 전체를 훑게 된다.
+        var options = new EnumerationOptions
         {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            MaxRecursionDepth = MaxMediaSearchDepth,
+            AttributesToSkip = 0,
+        };
+
+        var scanned = 0;
+        foreach (var path in Directory.EnumerateFiles(directory, "*", options))
+        {
+            if (++scanned > MaxMediaSearchFiles)
+                break;
+
             var fileName = Path.GetFileName(path);
             var isTopLevel = string.Equals(Path.GetDirectoryName(path), directory, StringComparison.OrdinalIgnoreCase);
             if (!index.ContainsKey(fileName) || isTopLevel)
@@ -525,7 +549,7 @@ public static partial class BmsParser
     // guessed: 적힌 자리에 파일이 없어서 같은 이름을 하위 폴더에서 찾아 붙였는지.
     // 부르는 쪽이 이 결과를 저장 파일에 박지 않도록 구분해서 알려준다.
     private static string ResolveMediaPath(
-        string baseDirectory, string mediaPath, Dictionary<string, string> fileNameIndex, out bool guessed)
+        string baseDirectory, string mediaPath, Lazy<Dictionary<string, string>> fileNameIndex, out bool guessed)
     {
         guessed = false;
 
@@ -537,7 +561,7 @@ public static partial class BmsParser
             return directPath;
 
         var fileName = Path.GetFileName(mediaPath);
-        if (fileNameIndex.TryGetValue(fileName, out var indexedPath))
+        if (fileNameIndex.Value.TryGetValue(fileName, out var indexedPath))
         {
             guessed = true;
             return indexedPath;
@@ -579,12 +603,12 @@ public static partial class BmsParser
             return Array.Empty<string>();
 
         var directory = Path.GetDirectoryName(filePath) ?? "";
-        var (lines, _) = ReadAllLines(filePath, directory, BuildFileNameIndex(directory));
+        var (lines, _) = ReadAllLines(filePath, directory, new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory)));
         return lines;
     }
 
     private static (string[] Lines, Encoding Encoding) ReadAllLines(
-        string filePath, string directory, Dictionary<string, string> fileNameIndex)
+        string filePath, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -653,7 +677,7 @@ public static partial class BmsParser
     //
     // 둘 다 못 가르면 CP932 로 둔다. 야생의 BMS 차트는 Shift_JIS 가 가장 많다.
     private static (string[] Lines, Encoding Encoding) DecodeLegacy(
-        byte[] bytes, string directory, Dictionary<string, string> fileNameIndex)
+        byte[] bytes, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         Encoding? bestEncoding = null;
         string? bestText = null;
@@ -694,7 +718,7 @@ public static partial class BmsParser
         return (SplitLines(bestText), bestEncoding);
     }
 
-    private static int CountResolvableMedia(string text, string directory, Dictionary<string, string> fileNameIndex)
+    private static int CountResolvableMedia(string text, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         var found = 0;
 
@@ -714,7 +738,7 @@ public static partial class BmsParser
 
             try
             {
-                if (fileNameIndex.ContainsKey(Path.GetFileName(mediaPath)))
+                if (fileNameIndex.Value.ContainsKey(Path.GetFileName(mediaPath)))
                 {
                     found++;
                     continue;

@@ -121,7 +121,7 @@
 | **[MainWindowViewModel.Editing.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Editing.cs)** | 노트 배치 · 삭제 · 이동(하나라도 못 가면 전부 제자리) · 마디 복제 · 키음 일괄 교체 · 선택, 키음 추가/삭제입니다. **모든 편집이 `NotifyNotesChanged` 를 지나며**, 여기서 되돌리기 기록과 홀드 짝 재계산이 같이 돕니다. |
 | **[MainWindowViewModel.History.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.History.cs)** | 되돌리기 / 다시 하기 명령과 스냅샷 뜨기 · 되살리기입니다. 노트 · 키음 표 · 선택을 담고, 건반 BMS 가져오기를 되돌릴 때만 헤더 · 보존줄까지 문서 전체를 되살립니다. |
 | **[MainWindowViewModel.Holds.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Holds.cs)** | `muse_dash` 프로파일로 짝을 다시 읽고(`RecomputeHolds`), 격자에 줄 몸통(`HoldLinks`) · 경고 노트(`HoldProblemNotes`) · 상태줄 요약 · 검사기 목록을 내놓습니다. |
-| **[MainWindowViewModel.Playback.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Playback.cs)** | 재생 / 정지, 스크럽(드래그 중엔 커서만, 뗄 때 한 번 재생), 33ms 타이머로 장치 재생 위치를 읽어 커서를 옮기고, 그 구간의 노트 키음을 이진 탐색으로 찾아 울립니다. |
+| **[MainWindowViewModel.Playback.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Playback.cs)** | 재생 / 정지, 스크럽(드래그 중엔 커서만, 뗄 때 한 번 재생), 16ms 타이머로 장치 재생 위치를 읽어 커서를 옮기고, 그 구간의 노트 키음을 이진 탐색으로 찾아 울립니다. |
 | **[MainWindowViewModel.FileIO.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.FileIO.cs)** | BMS 열기 / 저장(원본 인코딩으로 못 담는 글자가 생기면 UTF-8 로 물러나고 알림), OGG 비동기 로드(실패해도 기존 음원 유지), 영상 연결, 새로 만들기입니다. 헤더를 화면으로 옮기는 `PullHeaderFromChart` 와 그 반대인 `CopyHeaderTo` 가 여기 있습니다. |
 | **[MainWindowViewModel.Downmix.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Downmix.cs)** | 건반 BMS 가져오기입니다. 조건 블록 차트는 거절하고, 노트 정의를 만들고, 덮어쓰기 확인을 받은 뒤 문서를 통째로 갈아 끼우며(되돌리기 한 칸), 원본 폴더의 음원 · 영상을 같이 엽니다. 결과 창 문구(`DescribeDownmixReport`)도 만듭니다. |
 | **[MainWindowViewModel.Scenes.cs](../../muse%20dash%20bms%20editer/ViewModels/MainWindowViewModel.Scenes.cs)** | 구간 씬 바꾸기(`ConvertNotesToScene`)입니다. 마디 범위 안의 노트를 고른 씬의 같은 키음으로 바꾸고, 시작·복귀 씬 전환 노트를 넣습니다(새 `#WAV` 가 생겨도 되돌리기 한 칸). |
@@ -157,7 +157,7 @@
 
 | 파일명 | 역할 |
 | :--- | :--- |
-| **[Program.cs](../../muse%20dash%20bms%20editer/Program.cs)** | Avalonia 앱을 띄웁니다. 처리되지 않은 예외는 exe 옆 `crash.log` 에 남깁니다. |
+| **[Program.cs](../../muse%20dash%20bms%20editer/Program.cs)** | Avalonia 앱을 띄웁니다. 처리되지 않은 예외는 `%LocalAppData%\muse dash bms editer\logs\` 에 남깁니다(`Services/CrashLog.cs`). |
 | **[App.axaml / .cs](../../muse%20dash%20bms%20editer/App.axaml)** | Fluent 테마를 걸고 메인 창을 만듭니다. |
 | **[win-x64.pubxml](../../muse%20dash%20bms%20editer/Properties/PublishProfiles/win-x64.pubxml)** | 네이티브 라이브러리까지 exe 하나로 묶는 배포 설정입니다(`-p:PublishProfile=win-x64`). |
 

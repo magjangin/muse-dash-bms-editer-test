@@ -177,8 +177,8 @@ public sealed partial class MainWindowViewModel
         Chart.Notes.AddRange(added);
 
         // 바꾼 노트와 새 전환 노트를 골라 두어 결과를 바로 눈으로 확인하게 한다.
-        SetNoteSelection(rekeys.Select(r => r.Note).Concat(added), NoteSelectionSource.Search);
         NotifyNotesChanged("씬 바꾸기");
+        SetNoteSelection(rekeys.Select(r => r.Note).Concat(added), NoteSelectionSource.Search);
 
         return result;
     }

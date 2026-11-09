@@ -28,11 +28,24 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         }
     }
 
-    private readonly ConcurrentDictionary<string, PcmAudioData?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    // Lazy 로 감싼다. 미리 읽기와 재생이 같은 파일을 동시에 집어도 디코딩은 한 번만 돈다.
+    private readonly ConcurrentDictionary<string, Lazy<PcmAudioData?>> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    // 지금 백그라운드에서 읽는 중인 재생 요청. 같은 파일이 연달아 와도 한 번만 울린다.
+    private readonly ConcurrentDictionary<string, byte> _pendingPlays = new(StringComparer.OrdinalIgnoreCase);
+
+    // 파일이 없다고 확인한 시각 + 다시 볼 때까지의 여유. (값은 Environment.TickCount64 기준)
+    private readonly ConcurrentDictionary<string, long> _missingUntil = new(StringComparer.OrdinalIgnoreCase);
+
+    // 없는 파일을 이만큼 지나서 다시 확인한다. 나중에 폴더를 넣어도 앱을 다시 켤 필요가 없고(U-13),
+    // 키음 폴더를 빠뜨린 차트에서 노트마다 디스크를 두드리지도 않는다.
+    private const long MissingRetryMilliseconds = 2000;
     private readonly List<Voice> _activeVoices = new();
     private readonly object _lock = new();
 
-    private const int BufferFrames = 1764; // 40ms at 44100Hz
+    // 약 23ms. 버퍼 세 개가 앞서 나가 있으므로 이 값이 곧 키음이 늦게 들리는 양이다.
+    // 예전에는 40ms 라 노트보다 최대 120ms 늦게 들렸다.
+    private const int BufferFrames = 1024;
     private const int BufferCount = 3;
     private const int SampleRate = 44100;
     private const short Channels = 2;
@@ -80,46 +93,104 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
     public PcmAudioData? GetOrLoad(string filePath)
     {
         if (_cache.TryGetValue(filePath, out var cached))
-            return cached;
+            return cached.Value;
 
         if (!File.Exists(filePath))
             return null;
 
-        return _cache.GetOrAdd(filePath, WavDecoder.Decode);
+        return _cache.GetOrAdd(filePath, static path => new Lazy<PcmAudioData?>(() => WavDecoder.Decode(path))).Value;
     }
 
     public void PreloadAsync(IEnumerable<string> filePaths)
     {
-        var snapshot = filePaths.ToArray();
+        var snapshot = filePaths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         Task.Run(() =>
         {
-            foreach (var path in snapshot)
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+
+            // 키음이 수백 개인 차트가 흔하다. 하나씩 읽으면 재생을 눌렀을 때까지 다 못 읽는다.
+            Parallel.ForEach(snapshot, options, (path, state) =>
             {
-                if (_isDisposed) break;
+                if (_isDisposed)
+                {
+                    state.Stop();
+                    return;
+                }
+
                 Preload(path);
-            }
+            });
         });
     }
 
+    // UI 스레드에서 부른다. **여기서 디스크를 건드리지 않는다.**
+    //
+    // 예전에는 처음 듣는 키음이면 재생 타이머 안에서 파일을 읽고 디코딩했다. 그동안 커서가 멈췄다.
+    // 파일이 없는 키음은 노트가 지나갈 때마다 File.Exists 와 PlaySound 로 디스크를 다시 봤다.
     public void Play(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath) || _isDisposed)
             return;
 
-        var pcm = GetOrLoad(filePath);
-        if (pcm is null || pcm.Samples.Length == 0)
+        if (_cache.TryGetValue(filePath, out var entry) && entry.IsValueCreated)
         {
-            // 디코딩 실패 시 OS 기본 PlaySound 로 시도
-            PlaySoundFallback(filePath);
+            PlayDecoded(filePath, entry.Value);
             return;
         }
+
+        if (_missingUntil.TryGetValue(filePath, out var retryAt) && Environment.TickCount64 < retryAt)
+            return;
+
+        if (_pendingPlays.TryAdd(filePath, 0))
+            Task.Run(() => LoadAndPlay(filePath));
+    }
+
+    private void LoadAndPlay(string filePath)
+    {
+        try
+        {
+            if (_isDisposed)
+                return;
+
+            var pcm = GetOrLoad(filePath);
+            if (pcm is null && !File.Exists(filePath))
+            {
+                _missingUntil[filePath] = Environment.TickCount64 + MissingRetryMilliseconds;
+                return;
+            }
+
+            PlayDecoded(filePath, pcm);
+        }
+        finally
+        {
+            _pendingPlays.TryRemove(filePath, out _);
+        }
+    }
+
+    private void PlayDecoded(string filePath, PcmAudioData? pcm)
+    {
+        if (pcm is null || pcm.Samples.Length == 0)
+        {
+            // 디코딩 실패 시 OS 기본 PlaySound 로 시도. 드문 경우지만 파일을 건드리므로 UI 스레드 밖에서.
+            Task.Run(() => PlaySoundFallback(filePath));
+            return;
+        }
+
+        if (_isDisposed)
+            return;
 
         lock (_lock)
         {
             _activeVoices.Add(new Voice(pcm.Samples));
         }
 
-        _wakeEvent.Set();
+        try
+        {
+            _wakeEvent.Set();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 뒤에서 읽던 키음이 창을 닫는 순간과 겹친 경우. 울릴 곳이 없으니 그냥 끝낸다.
+        }
     }
 
     private static void PlaySoundFallback(string filePath)
@@ -147,7 +218,10 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         _playbackThread = new Thread(AudioLoop)
         {
             IsBackground = true,
-            Name = "KeySoundPlayer_Mixer"
+            Name = "KeySoundPlayer_Mixer",
+
+            // 믹서가 밀리면 소리가 끊긴다. 일은 짧으니 우선순위를 올려도 다른 쪽에 부담이 없다.
+            Priority = ThreadPriority.AboveNormal,
         };
         _playbackThread.Start();
     }
@@ -161,96 +235,104 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
         while (!_isDisposed)
         {
-            bool hasVoices;
-            lock (_lock)
+            // 백그라운드 스레드의 예외는 프로세스를 그대로 끝낸다. 소리만 포기하고 앱은 살린다.
+            try
             {
-                hasVoices = _activeVoices.Count > 0;
+                MixOneBuffer(shortBuffer, byteBuffer, ref currentBufferIndex, ref silentBuffersCount);
             }
-
-            if (!hasVoices)
+            catch (Exception ex)
             {
-                if (silentBuffersCount >= BufferCount && AreAllHeadersDone())
-                {
-                    // 활성 보이스가 없고 잔여 버퍼도 모두 재생 완료된 경우 대기
-                    CloseWaveOut();
-                    _wakeEvent.WaitOne(500);
-                    continue;
-                }
+                System.Diagnostics.Debug.WriteLine($"키음 믹서 오류: {ex}");
+                StopAll();
+                CloseWaveOut();
+                Thread.Sleep(100);
             }
-
-            if (!EnsureWaveOutOpen())
-            {
-                Thread.Sleep(30);
-                continue;
-            }
-
-            var hdr = (WaveHeader*)_headerPtrs[currentBufferIndex];
-
-            // 현재 버퍼가 재생 완료될 때까지 대기
-            if ((hdr->Flags & WHDR_DONE) == 0 && (hdr->Flags & WHDR_PREPARED) != 0)
-            {
-                Thread.Sleep(3);
-                continue;
-            }
-
-            // 믹싱 버퍼 초기화
-            Array.Clear(shortBuffer, 0, shortBuffer.Length);
-
-            bool mixedAnyVoice;
-            lock (_lock)
-            {
-                mixedAnyVoice = _activeVoices.Count > 0;
-                for (var v = _activeVoices.Count - 1; v >= 0; v--)
-                {
-                    var voice = _activeVoices[v];
-                    var remainingSamples = voice.Samples.Length - voice.Position;
-                    var samplesToCopy = Math.Min(remainingSamples, shortBuffer.Length);
-
-                    for (var i = 0; i < samplesToCopy; i++)
-                    {
-                        var mixed = shortBuffer[i] + voice.Samples[voice.Position + i];
-                        shortBuffer[i] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
-                    }
-
-                    voice.Position += samplesToCopy;
-                    if (voice.Position >= voice.Samples.Length)
-                    {
-                        _activeVoices.RemoveAt(v);
-                    }
-                }
-            }
-
-            if (mixedAnyVoice)
-            {
-                silentBuffersCount = 0;
-            }
-            else
-            {
-                silentBuffersCount++;
-            }
-
-            // short[] -> byte[] 변환 후 네이티브 버퍼에 복사
-            Buffer.BlockCopy(shortBuffer, 0, byteBuffer, 0, byteBuffer.Length);
-            Marshal.Copy(byteBuffer, 0, _buffers[currentBufferIndex], byteBuffer.Length);
-
-            // waveOutWrite
-            if ((hdr->Flags & WHDR_PREPARED) != 0)
-            {
-                WaveOutUnprepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
-            }
-
-            hdr->Data = _buffers[currentBufferIndex];
-            hdr->BufferLength = byteBuffer.Length;
-            hdr->BytesRecorded = 0;
-            hdr->Flags = 0;
-
-            WaveOutPrepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
-            WaveOutWrite(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
-
-            currentBufferIndex = (currentBufferIndex + 1) % BufferCount;
         }
 
         CloseWaveOut();
+    }
+
+    private void MixOneBuffer(short[] shortBuffer, byte[] byteBuffer, ref int currentBufferIndex, ref int silentBuffersCount)
+    {
+        bool hasVoices;
+        lock (_lock)
+        {
+            hasVoices = _activeVoices.Count > 0;
+        }
+
+        if (!hasVoices && silentBuffersCount >= BufferCount && AreAllHeadersDone())
+        {
+            // 활성 보이스가 없고 잔여 버퍼도 모두 재생 완료된 경우 대기
+            CloseWaveOut();
+            _wakeEvent.WaitOne(500);
+            return;
+        }
+
+        if (!EnsureWaveOutOpen())
+        {
+            // 장치를 못 열면 보이스가 소비되지 않고 쌓이다가, 장치가 돌아오는 순간 한꺼번에 터진다.
+            StopAll();
+            Thread.Sleep(30);
+            return;
+        }
+
+        var hdr = (WaveHeader*)_headerPtrs[currentBufferIndex];
+
+        // 현재 버퍼가 재생 완료될 때까지 대기
+        if ((hdr->Flags & WHDR_DONE) == 0 && (hdr->Flags & WHDR_PREPARED) != 0)
+        {
+            Thread.Sleep(3);
+            return;
+        }
+
+        // 믹싱 버퍼 초기화
+        Array.Clear(shortBuffer, 0, shortBuffer.Length);
+
+        bool mixedAnyVoice;
+        lock (_lock)
+        {
+            mixedAnyVoice = _activeVoices.Count > 0;
+            for (var v = _activeVoices.Count - 1; v >= 0; v--)
+            {
+                var voice = _activeVoices[v];
+                var remainingSamples = voice.Samples.Length - voice.Position;
+                var samplesToCopy = Math.Min(remainingSamples, shortBuffer.Length);
+
+                for (var i = 0; i < samplesToCopy; i++)
+                {
+                    var mixed = shortBuffer[i] + voice.Samples[voice.Position + i];
+                    shortBuffer[i] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
+                }
+
+                voice.Position += samplesToCopy;
+                if (voice.Position >= voice.Samples.Length)
+                {
+                    _activeVoices.RemoveAt(v);
+                }
+            }
+        }
+
+        silentBuffersCount = mixedAnyVoice ? 0 : silentBuffersCount + 1;
+
+        // short[] -> byte[] 변환 후 네이티브 버퍼에 복사
+        Buffer.BlockCopy(shortBuffer, 0, byteBuffer, 0, byteBuffer.Length);
+        Marshal.Copy(byteBuffer, 0, _buffers[currentBufferIndex], byteBuffer.Length);
+
+        // waveOutWrite
+        if ((hdr->Flags & WHDR_PREPARED) != 0)
+        {
+            WaveOutUnprepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
+        }
+
+        hdr->Data = _buffers[currentBufferIndex];
+        hdr->BufferLength = byteBuffer.Length;
+        hdr->BytesRecorded = 0;
+        hdr->Flags = 0;
+
+        WaveOutPrepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
+        WaveOutWrite(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
+
+        currentBufferIndex = (currentBufferIndex + 1) % BufferCount;
     }
 
     private bool EnsureWaveOutOpen()

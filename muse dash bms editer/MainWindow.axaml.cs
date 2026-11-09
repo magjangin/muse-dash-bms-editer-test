@@ -9,7 +9,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Controls.Primitives;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using bms_editer.Models;
@@ -42,13 +41,21 @@ public partial class MainWindow : Window
                 (DataContext as IDisposable)?.Dispose();
             };
             AddHandler(PointerPressedEvent, OnWindowPointerPressedTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
+            AddHandler(KeyDownEvent, OnWindowKeyDownTunnel, RoutingStrategies.Tunnel);
+
+            // 목록 항목이 이벤트를 소비해도 받아야 한다.
+            WavListBox.AddHandler(PointerReleasedEvent, OnWavListPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
             UpdateEditorOrientation();
             UpdateWindowTitle();
 
             try
             {
                 var iconFile = MainWindowViewModel.IsPersonalEdition ? "icon_personal.ico" : "icon_release.ico";
-                var iconUri = new Uri($"avares://muse dash bms editer/Assets/{iconFile}");
+
+                // 어셈블리 이름은 배포 프로필마다 다르다("muse dash bms editer 1" / "… 2").
+                // 이름을 박아 두면 배포본에서만 그림을 못 찾아 1번·2번 아이콘이 안 뜬다.
+                var assemblyName = typeof(MainWindow).Assembly.GetName().Name;
+                var iconUri = new Uri($"avares://{assemblyName}/Assets/{iconFile}");
                 if (Avalonia.Platform.AssetLoader.Exists(iconUri))
                     Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(iconUri));
             }
@@ -66,6 +73,7 @@ public partial class MainWindow : Window
             {
                 _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
                 _boundVm.ScrollToRatioRequested -= ScrollEditorToRatio;
+                _boundVm.UserMessageRequested -= OnUserMessageRequested;
 
                 if (ReferenceEquals(_boundVm, _initialVm) && !ReferenceEquals(DataContext, _initialVm))
                     _initialVm.Dispose();
@@ -77,10 +85,14 @@ public partial class MainWindow : Window
                 _boundVm.ConfirmAsync ??= message => ConfirmWindow.ShowAsync(this, message, "확인");
                 _boundVm.PropertyChanged += OnViewModelPropertyChanged;
                 _boundVm.ScrollToRatioRequested += ScrollEditorToRatio;
+                _boundVm.UserMessageRequested += OnUserMessageRequested;
                 UpdateEditorOrientation();
                 UpdateWindowTitle();
             }
         }
+
+        private async void OnUserMessageRequested(string message) =>
+            await ConfirmWindow.ShowMessageAsync(this, message, "알림");
 
         // 창을 닫을 때 저장 안 한 작업이 사라지지 않게 막는다.
         //
@@ -232,7 +244,15 @@ public partial class MainWindow : Window
                 return;
 
             if (!vm.LoadBms(path))
+            {
                 await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
+                return;
+            }
+
+            // 앞 곡의 파형과 음원이 남지 않게 그 차트 폴더의 음원·영상을 같이 연다.
+            var folderPath = Path.GetDirectoryName(path);
+            if (folderPath is not null)
+                await LoadFolderAudioAndVideoAsync(vm, folderPath);
         }
 
         // 탐색기 더블클릭 등 실행 인자로 받은 파일을 연다.
@@ -448,21 +468,44 @@ public partial class MainWindow : Window
 
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "WAV 파일 선택",
-                AllowMultiple = false,
+                Title = "키음 파일 선택",
+                AllowMultiple = true,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("WAV 오디오") { Patterns = new[] { "*.wav" } },
+                    new FilePickerFileType("키음 오디오") { Patterns = new[] { "*.wav", "*.ogg" } },
                 },
             });
 
-            var path = files.FirstOrDefault()?.TryGetLocalPath();
-            if (path is null)
-                return;
+            foreach (var path in files.Select(f => f.TryGetLocalPath()).Where(p => p is not null))
+            {
+                // 예전에는 실패해도 아무 표시가 없어서, 키음이 한도를 넘으면 조용히 아무 일도 안 났다.
+                if (vm.AddWav(path!))
+                    continue;
 
-            // 예전에는 실패해도 아무 표시가 없어서, 키음이 한도를 넘으면 조용히 아무 일도 안 났다.
-            if (!vm.AddWav(path))
                 await ConfirmWindow.ShowMessageAsync(this, $"키음을 추가하지 못했습니다.\n\n{vm.LastErrorMessage}", "키음 추가 실패");
+                return;
+            }
+        }
+
+        // 목록을 마우스로 골랐으면 키 입력을 격자로 돌려준다.
+        // 안 그러면 이어서 누른 방향키가 노트가 아니라 붓(키음 선택)을 바꾼다.
+        private void OnWavListPointerReleased(object? sender, PointerReleasedEventArgs e) => NoteGrid.Focus();
+
+        // 스페이스는 버튼보다 먼저 받는다. (터널 단계)
+        //
+        // 버블 단계에서 받으면 방금 누른 버튼이 포커스를 쥐고 있어서, 스페이스가 재생 대신
+        // 그 버튼을 또 누른다. ✏️ 를 켜고 들어 보려는 순간 편집 모드가 꺼지는 식이다.
+        private void OnWindowKeyDownTunnel(object? sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Space || e.KeyModifiers != KeyModifiers.None
+                || DataContext is not MainWindowViewModel vm
+                || IsWithin<TextBox>(FocusManager?.GetFocusedElement()))
+            {
+                return;
+            }
+
+            vm.TogglePlaybackCommand.Execute(null);
+            e.Handled = true;
         }
 
         private void OnNoteGridKeyDown(object? sender, KeyEventArgs e) => HandleEditorKey(e);
@@ -481,24 +524,25 @@ public partial class MainWindow : Window
 
             var focused = FocusManager?.GetFocusedElement();
 
-            // 글자를 치는 중이면 단축키가 아니라 입력이다.
+            // 글자를 치는 중이어도 저장·열기·새로 만들기는 받는다. BPM 을 고치고 바로 Ctrl+S 를 눌렀는데
+            // 아무 일도 안 일어나면 저장된 줄 알고 넘어가게 된다. 되돌리기(Ctrl+Z/Y)만 글자 칸의 것이다.
             if (IsWithin<TextBox>(focused))
+            {
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key is Key.S or Key.O or Key.N)
+                {
+                    // 숫자 칸은 포커스를 잃어야 값이 확정된다. 그래야 방금 친 BPM 이 저장에 들어간다.
+                    if (IsWithin<NumericUpDown>(focused))
+                        NoteGrid.Focus();
+
+                    HandleControlShortcut(e);
+                }
+
                 return;
+            }
 
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
             {
                 HandleControlShortcut(e);
-                return;
-            }
-
-            if (e.Key == Key.Space)
-            {
-                // 스페이스는 포커스가 잡힌 버튼·체크박스를 누르는 키이기도 하다. 그쪽이 우선이다.
-                if (IsWithin<Button>(focused) || IsWithin<ToggleButton>(focused))
-                    return;
-
-                vm.TogglePlaybackCommand.Execute(null);
-                e.Handled = true;
                 return;
             }
 
@@ -809,6 +853,10 @@ public partial class MainWindow : Window
             if (DataContext is not MainWindowViewModel vm || !vm.IsPlaying)
                 return;
 
+            // 격자·파형 위를 누를 때만 멈춘다. 스크롤바나 배속 슬라이더를 만지는 동안에는 계속 들을 수 있어야 한다.
+            if (!IsWithinEditorSurface(e.Source))
+                return;
+
             var properties = e.GetCurrentPoint(this).Properties;
             if (properties.IsMiddleButtonPressed)
                 return;
@@ -818,6 +866,9 @@ public partial class MainWindow : Window
                 vm.StopPlaybackAtCurrentPosition();
             }
         }
+
+        private bool IsWithinEditorSurface(object? source) =>
+            source is Visual visual && visual.GetSelfAndVisualAncestors().Contains(EditorSurface);
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {

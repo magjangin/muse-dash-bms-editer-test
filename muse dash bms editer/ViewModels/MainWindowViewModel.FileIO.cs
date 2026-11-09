@@ -22,6 +22,9 @@ public sealed partial class MainWindowViewModel
     // 새로 만든 문서는 UTF-8(BOM 없음)로 시작한다.
     public Encoding DocumentEncoding { get; private set; } = new UTF8Encoding(false);
 
+    // 음원 읽기 순번. 빠르게 연달아 열었을 때 마지막 것만 적용한다.
+    private int _oggLoadGeneration;
+
     // 지금 음원을 읽는 중인지. 화면에 로딩 표시를 띄우는 데 쓴다.
     [ObservableProperty] private bool _isLoadingOgg;
 
@@ -33,16 +36,21 @@ public sealed partial class MainWindowViewModel
     {
         OggWaveform waveform;
         OggAudioPlayer audioPlayer;
+        var generation = ++_oggLoadGeneration;
 
         IsLoadingOgg = true;
         try
         {
             // 디코딩은 5분짜리 곡이면 수 초가 걸린다. UI 스레드에서 하면 그동안 창이 얼어붙는다.
             // 새 음원을 끝까지 다 읽고 나서야 기존 것을 건드린다.
-            var decoded = await Task.Run(() => OggDecoder.Decode(filePath));
-
-            waveform = OggPeakLoader.Load(decoded);
-            audioPlayer = new OggAudioPlayer(decoded);
+            //
+            // 파형 계산도 같이 넘긴다. 곡 전체 표본을 한 번 훑는 일이라, await 뒤(UI 스레드)에
+            // 두면 디코딩을 백그라운드로 뺀 보람 없이 로딩 끝에서 창이 다시 멈춘다.
+            (waveform, audioPlayer) = await Task.Run(() =>
+            {
+                var decoded = OggDecoder.Decode(filePath);
+                return (OggPeakLoader.Load(decoded), new OggAudioPlayer(decoded));
+            });
         }
         catch (Exception ex)
         {
@@ -52,7 +60,15 @@ public sealed partial class MainWindowViewModel
         }
         finally
         {
-            IsLoadingOgg = false;
+            if (generation == _oggLoadGeneration)
+                IsLoadingOgg = false;
+        }
+
+        // 그사이 다른 음원을 열었다. 늦게 끝난 쪽이 최신 음원을 덮어쓰면 안 된다.
+        if (generation != _oggLoadGeneration)
+        {
+            audioPlayer.Dispose();
+            return true;
         }
 
         StopPlayback(resetCursor: true);
@@ -187,6 +203,9 @@ public sealed partial class MainWindowViewModel
             System.Diagnostics.Debug.WriteLine($"BMS 로드 실패: {ex.Message}");
             return false;
         }
+
+        // 재생을 멈추지 않으면 앞 곡 음원이 계속 나오고, 앞 곡 노트 번호가 새 키음 표에서 엉뚱한 소리를 찾는다.
+        StopPlayback(resetCursor: true);
 
         ResetDocumentState();
 

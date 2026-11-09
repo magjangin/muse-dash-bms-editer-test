@@ -121,7 +121,7 @@ if (DurationSeconds > 0 && Bpm > 0)
 ```
 
 홀드 몸통도 머리와 꼬리의 위치를 **각각** 이 함수로 구합니다. 마디 단위로 선형 보간하면 BPM 변화 구간을 지나는 몸통 끝이 꼬리 노트와 어긋납니다.
-재생 중 키음도 `Timeline.SecondsAt` 으로 "이번 33ms 사이에 울릴 노트"를 찾습니다(`MainWindowViewModel.PlayNotesInTimeRange`).
+재생 중 키음도 `Timeline.SecondsAt` 으로 "이번 16ms 사이에 울릴 노트"를 찾습니다(`MainWindowViewModel.PlayNotesInTimeRange`).
 
 ### 5. 파형
 

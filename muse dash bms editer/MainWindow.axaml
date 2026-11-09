@@ -124,6 +124,7 @@
                         IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
                         IsHorizontalView="{Binding IsHorizontalView}" />
                     <controls:NoteGridControl
+                        x:Name="NoteGrid"
                         Lanes="{Binding Chart.Lanes}"
                         MeasureCount="{Binding MeasureCount}"
                         RowHeight="{Binding RowHeight}"
@@ -292,7 +293,7 @@
 
                     <TextBlock Text="키음 (#WAV)" FontWeight="Bold" Margin="0,12,0,0" />
                     <StackPanel Spacing="4">
-                        <ListBox ItemsSource="{Binding WavList}" SelectedItem="{Binding SelectedWavItem}" Height="120">
+                        <ListBox x:Name="WavListBox" ItemsSource="{Binding WavList}" SelectedItem="{Binding SelectedWavItem}" Height="120">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="models:BmsWavItem">
                                     <TextBlock Text="{Binding DisplayText}" />

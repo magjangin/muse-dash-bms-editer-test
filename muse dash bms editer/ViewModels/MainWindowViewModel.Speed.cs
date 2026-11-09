@@ -70,8 +70,8 @@ public sealed partial class MainWindowViewModel
         foreach (var (note, key) in rekeys)
             note.WavKey = key;
 
-        SetNoteSelection(rekeys.Select(r => r.Note), NoteSelectionSource.Search);
         NotifyNotesChanged("속도 바꾸기");
+        SetNoteSelection(rekeys.Select(r => r.Note), NoteSelectionSource.Search);
 
         return result;
     }

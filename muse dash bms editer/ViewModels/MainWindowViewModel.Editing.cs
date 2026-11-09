@@ -24,15 +24,52 @@ public sealed partial class MainWindowViewModel
     // "노트 그림 가져오기" 뒤에 호출한다. 이미 읽어 둔 그림을 버리고 폴더에서 다시 읽는다.
     public void ReloadNoteIcons()
     {
-        _noteIconCatalog.Dispose();
+        // 지금 화면에 걸린 그림을 먼저 닫으면, 새 그림이 올 때까지의 렌더가 닫힌 비트맵을 집는다.
+        _retiredNoteIconCatalogs.Add(_noteIconCatalog);
         _noteIconCatalog = new NoteIconCatalog(NoteIconCatalog.DefaultFolder, NoteIconImporter.UserFolder);
         RefreshNoteIcons();
     }
 
-    private void RefreshNoteIcons()
+    private readonly List<NoteIconCatalog> _retiredNoteIconCatalogs = new();
+    private int _noteIconGeneration;
+
+    // 그림 읽기는 UI 스레드 밖에서 한다.
+    //
+    // 처음 여는 차트는 키음마다 PNG 를 풀고 그림자를 걷어 내는 일을 수백 번 해야 한다.
+    // 예전에는 차트를 여는 그 자리에서 다 했고, 끝날 때까지 창이 멈췄다.
+    // 그림이 오기 전까지 노트는 단색으로 그려지다가 준비되는 대로 그림으로 바뀐다.
+    private async void RefreshNoteIcons()
     {
-        _noteIcons = _noteIconCatalog.Build(Chart.WavTable);
+        var generation = ++_noteIconGeneration;
+        var catalog = _noteIconCatalog;
+        var table = Chart.WavTable.ToArray();
+
+        IReadOnlyDictionary<string, NoteIcon> icons;
+        try
+        {
+            icons = await Task.Run(() => catalog.Build(table));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"노트 그림 읽기 실패: {ex.Message}");
+            return;
+        }
+
+        // 그사이 키음 표가 또 바뀌었다. 뒤에 시작한 쪽이 결과를 넣는다.
+        if (generation != _noteIconGeneration)
+            return;
+
+        _noteIcons = icons;
         OnPropertyChanged(nameof(NoteIcons));
+        DisposeRetiredNoteIconCatalogs();
+    }
+
+    private void DisposeRetiredNoteIconCatalogs()
+    {
+        foreach (var retired in _retiredNoteIconCatalogs)
+            retired.Dispose();
+
+        _retiredNoteIconCatalogs.Clear();
     }
 
     // 씬/속도 바꾸기에서 새로 만든 #WAV 정의를 중간 히스토리 없이 한 번에 넣는다.
@@ -171,15 +208,10 @@ public sealed partial class MainWindowViewModel
     {
         if (notes.Count == 0) return 0;
 
-        var targetList = ReferenceEquals(notes, Chart.Notes) ? notes.ToArray() : notes;
-        var removed = 0;
-        foreach (var note in targetList)
-        {
-            if (!Chart.Notes.Remove(note)) continue;
-
-            _selectedNotes.Remove(note);
-            removed++;
-        }
+        // 하나씩 Remove 하면 지울 노트마다 목록 전체를 훑는다. 일괄 삭제가 수천 개일 때 그대로 드러난다.
+        var targets = new HashSet<BmsNote>(notes);
+        var removed = Chart.Notes.RemoveAll(targets.Contains);
+        _selectedNotes.ExceptWith(targets);
 
         if (removed > 0)
         {
@@ -237,8 +269,11 @@ public sealed partial class MainWindowViewModel
         if (created.Count > 0)
         {
             Chart.Notes.AddRange(created);
-            SetNoteSelection(created, NoteSelectionSource.Search);
+
+            // 기록을 먼저 한다. 선택을 먼저 바꾸면 "복제 전" 칸의 선택이 덮여서,
+            // 되돌렸을 때 원래 고른 노트가 아니라 빈 선택이 돌아온다.
             NotifyNotesChanged("마디 복제");
+            SetNoteSelection(created, NoteSelectionSource.Search);
         }
 
         return new NoteCopyResult(created.Count, blocked, outOfRange);
@@ -430,7 +465,7 @@ public sealed partial class MainWindowViewModel
         {
             var key = GetNextWavKey();
             Chart.WavTable[key] = filePath;
-            _keySoundPlayer.Preload(filePath);
+            _keySoundPlayer.PreloadAsync(new[] { filePath });
             var item = new BmsWavItem { Key = key, FilePath = filePath };
             WavList.Add(item);
             SelectedWavItem = item;
@@ -500,6 +535,13 @@ public sealed partial class MainWindowViewModel
 
         if (existing is not null)
         {
+            // 같은 칸을 같은 키음으로 다시 찍은 것은 편집이 아니다. 소리만 들려준다.
+            if (string.Equals(existing.WavKey, wavKey, StringComparison.OrdinalIgnoreCase))
+            {
+                PlayWavSound(wavKey);
+                return;
+            }
+
             existing.WavKey = wavKey;
         }
         else
