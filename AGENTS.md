@@ -71,6 +71,12 @@ muse dash bms editer/
    - `KeySoundPlayer.Play` 는 재생 타이머 안에서 불리므로 디스크를 건드리면 안 됩니다. 캐시에 없으면 백그라운드로 넘기고, 없는 파일은 2초 동안 다시 보지 않습니다.
    - OGG 파형 계산과 노트 그림 읽기도 백그라운드입니다. 노트 그림은 준비되는 대로 교체되므로 잠깐 단색으로 보일 수 있습니다(정상).
 
+6. **자동 저장·복구** ([`AutoSaveStore`](muse%20dash%20bms%20editer/Services/AutoSaveStore.cs), `MainWindowViewModel.AutoSave.cs`):
+   - 사용자 데이터는 전부 `%LocalAppData%\muse dash bms editer\` 아래입니다: `autosave\<세션>\`(60초마다, 최근 5벌), `backups\<차트-해시>\`(저장 전 내용 10세대 + `original.bms`), `settings.json`, `logs\`.
+   - **자동 저장 내용은 원본 차트 경로를 기준으로 만듭니다.** `BmsWriter` 가 저장 경로 기준으로 키음 상대 경로를 계산하므로, 자동 저장 폴더를 기준으로 쓰면 복구했을 때 키음이 전부 끊깁니다. 읽을 때도 `BmsParser.Parse(파일, 기준 폴더)` 로 같은 기준을 줍니다.
+   - 정상 저장·"저장 안 함"이면 지웁니다. **다음 실행에 남아 있는 것은 곧 비정상 종료의 증거**입니다. 다른 창이 쓰는 폴더는 `session.lock` 으로 가립니다(프로세스가 죽으면 OS 가 풀어 줌).
+   - `MainWindow.EnableDesktopServices()` 는 **실제 앱 시작(`App`)에서만** 부릅니다. 헤드리스 창 테스트가 사용자의 설정·자동 저장을 건드리면 안 됩니다. 같은 이유로 `AutoSave` 의 기본값은 null 입니다.
+
 ---
 
 ## 4. 커스텀 에셋 주입 파이프라인 & UID 규칙
