@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using bms_editer.Models;
 using bms_editer.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -222,9 +223,15 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
     }
 
     [RelayCommand]
-    private void DeleteMatches()
+    private async Task DeleteMatchesAsync()
     {
         var matches = FindMatches();
+        if (!await ConfirmBulkAsync(matches.Count, "지웁니다"))
+        {
+            StatusMessage = "지우지 않았습니다.";
+            return;
+        }
+
         var removed = Owner.DeleteNotes(matches);
         StatusMessage = removed == 0
             ? "조건에 맞는 노트가 없습니다."
@@ -274,7 +281,7 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
     }
 
     [RelayCommand]
-    private void ReplaceWavKey()
+    private async Task ReplaceWavKeyAsync()
     {
         if (!TryParseBase36(ReplacementWavKey, out var parsed) || parsed == 0 || parsed > MaxKeyValue)
         {
@@ -284,6 +291,12 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
 
         var normalizedKey = ToBase36(parsed);
         var matches = FindMatches();
+        if (!await ConfirmBulkAsync(matches.Count, $"#{normalizedKey} 로 바꿉니다"))
+        {
+            StatusMessage = "바꾸지 않았습니다.";
+            return;
+        }
+
         var changed = Owner.ReplaceWavKey(matches, normalizedKey);
         ReplacementWavKey = normalizedKey;
 

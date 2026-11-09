@@ -38,6 +38,7 @@ public partial class MainWindow : Window
                 foreach (var toolWindow in _toolWindows.Values.ToArray())
                     toolWindow.Close();
 
+                SaveSettingsIfEnabled();
                 (DataContext as IDisposable)?.Dispose();
             };
             AddHandler(PointerPressedEvent, OnWindowPointerPressedTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -45,6 +46,7 @@ public partial class MainWindow : Window
 
             // 목록 항목이 이벤트를 소비해도 받아야 한다.
             WavListBox.AddHandler(PointerReleasedEvent, OnWavListPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
+            EditorScrollViewer.AddHandler(PointerWheelChangedEvent, OnEditorWheelTunnel, RoutingStrategies.Tunnel);
             UpdateEditorOrientation();
             UpdateWindowTitle();
 
@@ -103,6 +105,8 @@ public partial class MainWindow : Window
 
         private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
         {
+            CaptureWindowPlacement();
+
             if (_isClosingConfirmed || DataContext is not MainWindowViewModel vm || !vm.IsDirty)
                 return;
 
@@ -123,7 +127,7 @@ public partial class MainWindow : Window
 
                 case ConfirmChoice.Confirm:
                     var savePath = vm.CurrentFilePath ?? await PickSavePathAsync(vm);
-                    if (savePath is null)
+                    if (savePath is null || !await EnsureMayOverwriteAsync(vm, savePath))
                         return;
 
                     if (!vm.SaveBms(savePath))
@@ -134,6 +138,9 @@ public partial class MainWindow : Window
                     }
                     break;
             }
+
+            // "저장 안 함"을 고른 작업을 다음 실행에서 복구하라고 묻지 않는다.
+            vm.DiscardAutoSave();
 
             _isClosingConfirmed = true;
             Close();
@@ -239,6 +246,12 @@ public partial class MainWindow : Window
             if (path is null)
                 return;
 
+            await OpenChartPathAsync(vm, path);
+        }
+
+        // 파일 메뉴·최근 파일·끌어다 놓기가 같이 쓴다.
+        private async Task OpenChartPathAsync(MainWindowViewModel vm, string path)
+        {
             // 확인은 열 파일을 고른 뒤에 받는다. (폴더 열기와 같은 이유)
             if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
                 return;
@@ -378,6 +391,9 @@ public partial class MainWindow : Window
         // 저장은 됐지만 알려야 할 것(인코딩을 UTF-8로 물린 경우)도 여기서 보여준다.
         private async Task SaveAndReportAsync(MainWindowViewModel vm, string path)
         {
+            if (!await EnsureMayOverwriteAsync(vm, path))
+                return;
+
             if (!vm.SaveBms(path))
             {
                 await ConfirmWindow.ShowMessageAsync(this, $"저장하지 못했습니다.\n\n{vm.LastErrorMessage}", "저장 실패");
@@ -610,6 +626,12 @@ public partial class MainWindow : Window
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
+            if (e.KeyModifiers == KeyModifiers.None && TryHandlePlainKey(vm, e.Key))
+            {
+                e.Handled = true;
+                return;
+            }
+
             switch (e.Key)
             {
                 case Key.Delete:
@@ -622,15 +644,6 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
 
-                case Key.G:
-                    vm.SnapToGrid = !vm.SnapToGrid;
-                    e.Handled = true;
-                    return;
-
-                case Key.D:
-                    vm.LockVerticalPosition = !vm.LockVerticalPosition;
-                    e.Handled = true;
-                    return;
             }
 
             NoteMoveDirection? direction = e.Key switch
@@ -647,6 +660,43 @@ public partial class MainWindow : Window
                 vm.MoveSelectedNotesCommand.Execute(d);
                 e.Handled = true;
             }
+        }
+
+        // 글자·숫자 한 키 단축키. Ctrl 과 같이 누른 것은 여기로 오지 않는다.
+        private static bool TryHandlePlainKey(MainWindowViewModel vm, Key key)
+        {
+            switch (key)
+            {
+                case Key.G:
+                    vm.SnapToGrid = !vm.SnapToGrid;
+                    return true;
+
+                case Key.D:
+                    vm.LockVerticalPosition = !vm.LockVerticalPosition;
+                    return true;
+
+                case Key.E:
+                    vm.IsEditMode = !vm.IsEditMode;
+                    return true;
+            }
+
+            // 숫자 키로 격자 분할을 바꾼다. 잇단음 구간을 오갈 때 패널까지 손이 가지 않게 한다.
+            int? split = key switch
+            {
+                Key.D1 or Key.NumPad1 => 4,
+                Key.D2 or Key.NumPad2 => 8,
+                Key.D3 or Key.NumPad3 => 12,
+                Key.D4 or Key.NumPad4 => 16,
+                Key.D6 or Key.NumPad6 => 24,
+                Key.D8 or Key.NumPad8 => 32,
+                _ => null,
+            };
+
+            if (split is not { } value)
+                return false;
+
+            vm.BeatSplit = value;
+            return true;
         }
 
         // 포커스가 T 안에(또는 T 자신에) 있는지.
@@ -885,6 +935,11 @@ public partial class MainWindow : Window
             else if (e.PropertyName == nameof(MainWindowViewModel.WindowTitle))
             {
                 UpdateWindowTitle();
+            }
+            else if (e.PropertyName == nameof(MainWindowViewModel.CurrentFilePath))
+            {
+                if (sender is MainWindowViewModel { CurrentFilePath: { } current })
+                    RememberRecentFile(current);
             }
             else if (e.PropertyName == nameof(MainWindowViewModel.IsPlaying))
             {

@@ -17,6 +17,9 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
     }
 
+    // 죽기 직전에 부르는 비상 저장. 다른 스레드에서도 불릴 수 있어 창을 거치지 않고 뷰모델을 직접 잡아 둔다.
+    public static System.Func<bool>? EmergencySave { get; private set; }
+
     private MainWindow? _mainWindow;
     private bool _isShowingErrorNotice;
 
@@ -25,6 +28,7 @@ public partial class App : Application
     private void OnUiThreadException(object? sender, DispatcherUnhandledExceptionEventArgs e)
     {
         var logPath = CrashLog.Write(e.Exception, "UI");
+        var saved = EmergencySave?.Invoke() == true;
         e.Handled = true;
 
         if (_isShowingErrorNotice || _mainWindow is not { IsVisible: true } owner)
@@ -38,6 +42,7 @@ public partial class App : Application
                 await ConfirmWindow.ShowMessageAsync(
                     owner,
                     $"예상하지 못한 오류가 났습니다. 작업 내용을 먼저 저장해 주십시오.\n\n{e.Exception.Message}"
+                    + (saved ? "\n\n지금까지의 작업은 자동 저장에 남겨 두었습니다." : "")
                     + (logPath is null ? "" : $"\n\n기록: {logPath}"),
                     "오류");
             }
@@ -58,8 +63,11 @@ public partial class App : Application
             _mainWindow = mainWindow;
             desktop.MainWindow = mainWindow;
 
-            if (StartupFilePath is { } startupPath)
-                mainWindow.Opened += async (_, _) => await mainWindow.OpenExternalFileAsync(startupPath);
+            mainWindow.EnableDesktopServices();
+            if (mainWindow.DataContext is ViewModels.MainWindowViewModel vm)
+                EmergencySave = vm.EmergencySave;
+
+            mainWindow.Opened += async (_, _) => await mainWindow.RunStartupAsync(StartupFilePath);
         }
 
         base.OnFrameworkInitializationCompleted();

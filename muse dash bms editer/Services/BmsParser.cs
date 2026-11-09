@@ -76,7 +76,8 @@ public static partial class BmsParser
     // 예전에는 반환값 하나에 out 3개였다. 그중 BPM 과 마디 수는 차트 안에도 같은 값이
     // 들어 있어서, 호출한 쪽이 어느 쪽을 믿어야 하는지 매번 헷갈렸다.
     // 이제 차트를 다 채워서 하나로 돌려준다.
-    public static BmsParseResult Parse(string filePath)
+    // baseDirectory: 키음 상대 경로의 기준 폴더. 자동 저장본처럼 원본 폴더 밖에 있는 파일을 읽을 때 넘긴다.
+    public static BmsParseResult Parse(string filePath, string? baseDirectory = null)
     {
         var chart = new BmsChart();
         var parsedBpm = 120.0;
@@ -90,7 +91,7 @@ public static partial class BmsParser
             return new BmsParseResult(chart, wavItems, DefaultEncoding);
         }
 
-        var directory = Path.GetDirectoryName(filePath) ?? "";
+        var directory = baseDirectory ?? Path.GetDirectoryName(filePath) ?? "";
 
         // 적힌 경로에 파일이 없을 때만 만든다. 대부분의 차트는 적힌 그대로라 폴더를 훑을 일이 없다.
         var mediaPathIndex = new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory));

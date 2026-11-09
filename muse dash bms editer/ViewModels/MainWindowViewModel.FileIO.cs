@@ -143,6 +143,12 @@ public sealed partial class MainWindowViewModel
         // 빈 문서에서 이전 문서의 편집으로 거슬러 올라가면 안 된다.
         ResetEditHistory();
 
+        // 앞 문서는 버리기로 확인을 받은 뒤에만 여기에 온다. 그 자동 저장도 같이 지운다.
+        AutoSave?.DiscardCurrent();
+        _originalBackedUpPath = null;
+        _fileStamp = null;
+        _externalChangeNotified = null;
+
         // 방금 비운 직후는 "고친 것 없음"이다. 위 알림들이 세운 표시를 여기서 내린다.
         MarkClean();
     }
@@ -204,6 +210,16 @@ public sealed partial class MainWindowViewModel
             return false;
         }
 
+        ApplyParsedDocument(parsed, filePath);
+
+        _fileStamp = FileStampOf(filePath);
+        _externalChangeNotified = _fileStamp;
+        return true;
+    }
+
+    // 읽어 낸 차트로 문서를 통째로 바꾼다. 파일 열기와 자동 저장 복구가 같이 쓴다.
+    private void ApplyParsedDocument(BmsParseResult parsed, string? currentFilePath)
+    {
         // 재생을 멈추지 않으면 앞 곡 음원이 계속 나오고, 앞 곡 노트 번호가 새 키음 표에서 엉뚱한 소리를 찾는다.
         StopPlayback(resetCursor: true);
 
@@ -228,7 +244,7 @@ public sealed partial class MainWindowViewModel
             SelectedWavItem = WavList[0];
         }
 
-        CurrentFilePath = filePath;
+        CurrentFilePath = currentFilePath;
         LastErrorMessage = null;
 
         // UI 렌더링 강제 업데이트 유도
@@ -240,7 +256,6 @@ public sealed partial class MainWindowViewModel
 
         // 방금 읽어온 그대로다. 아직 고친 것이 없다.
         MarkClean();
-        return true;
     }
 
     // 어떤 인코딩으로 쓸지 정한다.
@@ -287,12 +302,20 @@ public sealed partial class MainWindowViewModel
             var content = BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, filePath);
             var encoding = ChooseSaveEncoding(content);
 
+            AutoSave?.BackupBeforeSave(filePath, isFirstSave: !string.Equals(_originalBackedUpPath, filePath, StringComparison.OrdinalIgnoreCase));
+            _originalBackedUpPath = filePath;
+
             // 원본을 바로 덮어쓰지 않는다. 쓰다 말면 되돌릴 방법이 없다. (SafeFileWriter 주석 참고)
             SafeFileWriter.WriteAllText(filePath, content, encoding);
             DocumentEncoding = encoding;
             CurrentFilePath = filePath;
             LastErrorMessage = null;
             MarkClean();
+
+            // 파일에 들어갔으니 자동 저장은 할 일이 끝났다. 남겨 두면 다음 실행에서 복구하라고 묻는다.
+            AutoSave?.DiscardCurrent();
+            _fileStamp = FileStampOf(filePath);
+            _externalChangeNotified = _fileStamp;
             return true;
         }
         catch (Exception ex)

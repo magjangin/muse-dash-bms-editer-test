@@ -19,6 +19,9 @@ internal class Program
         {
             if (e.ExceptionObject is Exception fatal)
                 CrashLog.Write(fatal, "AppDomain");
+
+            // 이 뒤로 프로세스가 끝난다. 살릴 수는 없어도 작업은 남긴다.
+            App.EmergencySave?.Invoke();
         };
 
         TaskScheduler.UnobservedTaskException += (_, e) =>

@@ -21,5 +21,11 @@ public sealed class BmsWavItem
     public string FileName => Path.GetFileName(FilePath);
     // 팔레트 표시용. 앞의 코드와 뒤의 _dt, 확장자를 뗀 이름(씬이 없으면 씬을 붙인다).
     public string ShortName => WavSearch.DisplayName(FileName);
-    public string DisplayText => $"#{Key}: {FileName}";
+
+    // 파일이 실제로 있는지. 목록에 보일 때 한 번만 확인한다.
+    // 씬 WAV 폴더를 빠뜨린 차트는 소리만 안 나서 이유가 안 보이고, 게임에 넣고 나서야 알게 된다.
+    private bool? _isFileMissing;
+    public bool IsFileMissing => _isFileMissing ??= !File.Exists(FilePath);
+
+    public string DisplayText => $"{(IsFileMissing ? "⚠️ " : "")}#{Key}: {FileName}";
 }
