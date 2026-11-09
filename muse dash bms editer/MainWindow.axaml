@@ -206,7 +206,7 @@
                         <TextBlock Text="#GENRE" />
                         <TextBox Text="{Binding Genre}" />
                         <TextBlock Text="#BPM" />
-                        <NumericUpDown Value="{Binding Bpm}" Minimum="1" Maximum="999" FormatString="0.0000" />
+                        <controls:NumberBox Value="{Binding Bpm}" Minimum="1" Maximum="999" FormatString="0.0000" />
                         <TextBlock Text="#PLAYER" />
                         <ComboBox SelectedIndex="{Binding Player}" HorizontalAlignment="Stretch">
                             <ComboBoxItem Content="1 - Single" />
@@ -227,18 +227,18 @@
                     <TextBlock Text="격자" FontWeight="Bold" Margin="0,12,0,0" />
                     <StackPanel Spacing="4">
                         <TextBlock Text="마디 수" />
-                        <NumericUpDown Value="{Binding MeasureCount}"
+                        <controls:NumberBox Value="{Binding MeasureCount}"
                                        Minimum="1" Maximum="9999"
                                        ToolTip.Tip="음원 길이와 이미 찍힌 노트가 요구하는 만큼은 자동으로 확보됩니다" />
                         <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="8">
                             <StackPanel Grid.Column="0" Spacing="2">
                                 <TextBlock Text="비트" />
-                                <NumericUpDown Value="{Binding BeatSplit}" Minimum="1" Maximum="192" />
+                                <controls:NumberBox Value="{Binding BeatSplit}" Minimum="1" Maximum="192" />
                             </StackPanel>
                             <TextBlock Grid.Column="1" Text="/" VerticalAlignment="Bottom" Margin="0,0,0,8" />
                             <StackPanel Grid.Column="2" Spacing="2">
                                 <TextBlock Text="마디" />
-                                <NumericUpDown Value="{Binding GridMeasure}" Minimum="1" Maximum="48" />
+                                <controls:NumberBox Value="{Binding GridMeasure}" Minimum="1" Maximum="48" />
                             </StackPanel>
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="4">

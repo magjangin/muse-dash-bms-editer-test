@@ -463,6 +463,25 @@ public sealed class AutoSaveAndSettingsTests : IDisposable
         window.Close();
     });
 
+    // UI 자동화 클라이언트가 붙어 있으면 NumericUpDown 의 기본 연결이 decimal 을 못 넘겨 예외를 던진다.
+    // 차트를 열다가 바인딩이 끊겨 문서가 반쯤만 들어왔다. 실제 exe 를 UI 자동화로 돌려 보다가 잡혔다.
+    [Fact]
+    public void 창의_숫자_칸은_문제가_되는_접근성_연결을_쓰지_않는다() => HoldTestSupport.RunOnUiThread(() =>
+    {
+        var window = new bms_editer.MainWindow { DataContext = new MainWindowViewModel() };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var boxes = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window)
+            .OfType<Avalonia.Controls.NumericUpDown>()
+            .ToList();
+
+        Assert.NotEmpty(boxes);
+        Assert.All(boxes, box => Assert.IsNotType<Avalonia.Automation.Peers.NumericUpDownAutomationPeer>(
+            Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(box)));
+        window.Close();
+    });
+
     private static AutoSaveMeta Meta(DateTime? at = null) =>
         new(null, "base.bms", at ?? DateTime.UtcNow, 0, Encoding.UTF8.CodePage, false, "t");
 }

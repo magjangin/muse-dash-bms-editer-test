@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:bms_editer.Views.Controls"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:bms_editer.ViewModels"
         mc:Ignorable="d"
@@ -77,10 +78,10 @@
             <TextBlock Grid.Row="1" Grid.Column="0"
                        Text="마디 범위" HorizontalAlignment="Right" VerticalAlignment="Center" />
             <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,*" ColumnSpacing="8">
-                <NumericUpDown Grid.Column="0" Value="{Binding MeasureFrom}"
+                <controls:NumberBox Grid.Column="0" Value="{Binding MeasureFrom}"
                                Minimum="0" Maximum="9999" Increment="1" FormatString="0" />
                 <TextBlock Grid.Column="1" Text="~" VerticalAlignment="Center" />
-                <NumericUpDown Grid.Column="2" Value="{Binding MeasureTo}"
+                <controls:NumberBox Grid.Column="2" Value="{Binding MeasureTo}"
                                Minimum="0" Maximum="9999" Increment="1" FormatString="0" />
             </Grid>
 
@@ -144,7 +145,7 @@
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                 Command="{Binding CopyMatchesCommand}"
                                 ToolTip.Tip="조건에 맞는 노트를 오른쪽 마디 수만큼 옮긴 자리에 복제합니다. 음수를 넣으면 앞쪽으로 복사합니다. 이미 노트가 있는 자리는 건너뜁니다." />
-                        <NumericUpDown Grid.Column="1" Width="124" Value="{Binding CopyMeasureOffset}"
+                        <controls:NumberBox Grid.Column="1" Width="124" Value="{Binding CopyMeasureOffset}"
                                        Minimum="-999" Maximum="999" Increment="1" FormatString="0" />
                     </Grid>
 

@@ -111,6 +111,9 @@ muse dash bms editer/
 * ❌ **`avares://` 경로에 어셈블리 이름 박기**:
   - 배포 프로필의 `<AssemblyName>` 이 `muse dash bms editer 1` / `2` 라 고정 이름으로는 배포본에서만 그림을 못 찾았고, `try/catch` 에 묻혀 조용히 기본 아이콘이 떴습니다. `Assembly.GetName().Name` 을 쓰십시오.
 
+* ❌ **XAML 에 `NumericUpDown` 을 그대로 쓰기**:
+  - Avalonia 12.0.5 의 자동화 연결이 `decimal` 을 UIA 로 못 넘겨, 화면 낭독기·접근성 도구가 붙어 있으면 값이 바뀔 때 예외가 납니다(차트를 여는 도중 문서가 반쯤만 들어옴). 평소에는 안 보입니다. [`NumberBox`](muse%20dash%20bms%20editer/Views/Controls/NumberBox.cs) 를 쓰십시오.
+
 ---
 
 ## 6. 빌드 & 패키징 스크립트 가이드
