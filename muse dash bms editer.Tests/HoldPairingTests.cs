@@ -200,6 +200,7 @@ public sealed class HoldPairingTests
             return;
         }
 
+        var hasAnyLinks = false;
         foreach (var path in charts)
         {
             var parsed = BmsParser.Parse(path);
@@ -217,17 +218,11 @@ public sealed class HoldPairingTests
                 _output.WriteLine("    " + error.DisplayText);
 
             Assert.Empty(errors);
+            hasAnyLinks |= result.Links.Count > 0;
         }
 
-        Assert.Contains(charts, path => HoldPairingEngine
-            .Pair(BmsParser.Parse(path).Chart.Notes, WavTextsOf(path), Profile).Links.Count > 0);
+        Assert.True(hasAnyLinks);
     }
-
-    private static Dictionary<string, string> WavTextsOf(string path) =>
-        BmsParser.Parse(path).WavItems.ToDictionary(
-            w => w.Key,
-            w => string.IsNullOrEmpty(w.SourceText) ? w.FileName : w.SourceText,
-            StringComparer.OrdinalIgnoreCase);
 
     // 게임 폴더는 컴퓨터마다 다르다. 환경변수로 덮어쓸 수 있게 두고, 없으면 알려진 자리를 본다.
     private static IReadOnlyList<string> FindRealCharts()

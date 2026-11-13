@@ -28,6 +28,14 @@ public sealed partial class MainWindowViewModel
     // 지금 음원을 읽는 중인지. 화면에 로딩 표시를 띄우는 데 쓴다.
     [ObservableProperty] private bool _isLoadingOgg;
 
+    // 0 은 고르지 못했다는 뜻(모든 점수가 0 이하이거나 무음).
+    public static string FormatAutoBpm(double ibmsc, double precise)
+    {
+        static string Show(double bpm) =>
+            bpm > 0 ? bpm.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "-";
+        return $"iBMSC {Show(ibmsc)} · 정밀 {Show(precise)}";
+    }
+
     // 실패하면 false. 실패해도 이미 물려 있던 음원은 그대로 둔다.
     //
     // 예전에는 catch 가 _audioPlayer(= 기존 플레이어)를 Dispose 하고 파형·길이를 0/null 로
@@ -36,6 +44,8 @@ public sealed partial class MainWindowViewModel
     {
         OggWaveform waveform;
         OggAudioPlayer audioPlayer;
+        (double Ibmsc, double Precise) autoBpm;
+        AudioAttack[] attacks;
         var generation = ++_oggLoadGeneration;
 
         IsLoadingOgg = true;
@@ -46,10 +56,24 @@ public sealed partial class MainWindowViewModel
             //
             // 파형 계산도 같이 넘긴다. 곡 전체 표본을 한 번 훑는 일이라, await 뒤(UI 스레드)에
             // 두면 디코딩을 백그라운드로 뺀 보람 없이 로딩 끝에서 창이 다시 멈춘다.
-            (waveform, audioPlayer) = await Task.Run(() =>
+            //
+            // 자동 BPM 과 격자 판정용 어택도 같은 표본을 쓰므로 여기서 같이 잰다.
+            (waveform, audioPlayer, autoBpm, attacks) = await Task.Run(() =>
             {
                 var decoded = OggDecoder.Decode(filePath);
-                return (OggPeakLoader.Load(decoded), new OggAudioPlayer(decoded));
+                var onsetCurve = PreciseBpmDetector.BuildOnsetCurve(decoded);
+                OggWaveform loadedWaveform = null!;
+                double ibmscBpm = 0;
+                double preciseBpm = 0;
+                AudioAttack[] foundAttacks = [];
+
+                Parallel.Invoke(
+                    () => loadedWaveform = OggPeakLoader.Load(decoded),
+                    () => ibmscBpm = IbmscBpmDetector.Detect(decoded, fullBand: true),
+                    () => preciseBpm = PreciseBpmDetector.Detect(onsetCurve),
+                    () => foundAttacks = GridFitAdvisor.FindAttacks(onsetCurve));
+
+                return (loadedWaveform, new OggAudioPlayer(decoded), (ibmscBpm, preciseBpm), foundAttacks);
             });
         }
         catch (Exception ex)
@@ -77,6 +101,8 @@ public sealed partial class MainWindowViewModel
         OggDurationSeconds = waveform.DurationSeconds;
         OggPeaks = waveform.Peaks;
         OggOnsets = waveform.Onsets;
+        AutoBpmText = FormatAutoBpm(autoBpm.Ibmsc, autoBpm.Precise);
+        SetAudioAttacks(attacks);
         OggFileName = Path.GetFileName(filePath);
         UpdateMeasureCountFromAudio();
         LastErrorMessage = null;
@@ -111,6 +137,8 @@ public sealed partial class MainWindowViewModel
         OggFileName = null;
         OggPeaks = null;
         OggOnsets = null;
+        AutoBpmText = AutoBpmNoAudioText;
+        SetAudioAttacks([]);
         OggDurationSeconds = 0;
         ClearVideo();
 

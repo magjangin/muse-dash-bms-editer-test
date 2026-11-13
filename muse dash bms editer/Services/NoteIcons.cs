@@ -170,9 +170,13 @@ public sealed class NoteIconCatalog : IDisposable
         };
     }
 
+    // 씬 전환(0004yy). yy 는 바꿀 씬 번호라 방향이 아니다.
+    private static bool IsSceneChange(string uid) => uid.StartsWith("0004", StringComparison.Ordinal);
+
     public static NoteDirection DirectionOf(string uid)
     {
-        if (uid.Length != 6 || IsBossAction(uid))
+        // 씬 전환을 빼먹어서 7번·10번 씬 전환(000407·000410)에 "위에서 등장" 삼각형이 붙었다.
+        if (uid.Length != 6 || IsBossAction(uid) || IsSceneChange(uid))
             return NoteDirection.None;
 
         uid = SpeedOneOf(uid);

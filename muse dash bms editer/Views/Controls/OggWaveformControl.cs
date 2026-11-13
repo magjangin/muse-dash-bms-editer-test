@@ -26,26 +26,21 @@ public sealed class OggWaveformControl : TimelineControlBase
     public static readonly StyledProperty<IReadOnlyList<float>?> PeaksProperty =
         AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<float>?>(nameof(Peaks));
 
-    public static readonly StyledProperty<IReadOnlyList<float>?> OnsetsProperty =
-        AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<float>?>(nameof(Onsets));
-
     public IReadOnlyList<float>? Peaks
     {
         get => GetValue(PeaksProperty);
         set => SetValue(PeaksProperty, value);
     }
 
-    public IReadOnlyList<float>? Onsets
-    {
-        get => GetValue(OnsetsProperty);
-        set => SetValue(OnsetsProperty, value);
-    }
+    // 예전에는 파형 위에 온셋(어택) 세로선을 그었다. 소리는 격자에 맞는데 선은 어긋나 보여서
+    // 오히려 판단을 흐렸다(With). 지워졌고, 대신 오른쪽 패널에 "파형으로 맞춰도 되나 / 소리로 들어야 하나"
+    // 안내를 띄운다(GridFitAdvisor). 다시 넣지 마십시오.
 
     public event EventHandler<WaveformScrubRequestedEventArgs>? ScrubRequested;
 
     static OggWaveformControl()
     {
-        AffectsRender<OggWaveformControl>(PeaksProperty, OnsetsProperty);
+        AffectsRender<OggWaveformControl>(PeaksProperty);
     }
 
     public OggWaveformControl()
@@ -107,7 +102,6 @@ public sealed class OggWaveformControl : TimelineControlBase
         if (peaks is { Count: > 1 })
         {
             DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds, range);
-            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView, range);
         }
         else
         {
@@ -262,79 +256,6 @@ public sealed class OggWaveformControl : TimelineControlBase
                 context.FillRectangle(fillBrush, rect);
                 if (i % 3 == 0)
                     context.DrawLine(outlinePen, new Point(center - half, tPos), new Point(center + half, tPos));
-            }
-        }
-    }
-
-    private static readonly IPen[] OnsetPens = CreateOnsetPens();
-
-    private static IPen[] CreateOnsetPens()
-    {
-        var pens = new IPen[146];
-        for (var alpha = 25; alpha < pens.Length; alpha++)
-            pens[alpha] = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
-        return pens;
-    }
-
-    private static IPen GetOnsetPen(byte alpha) => OnsetPens[Math.Clamp((int)alpha, 25, 145)];
-
-    private void DrawOnsetMarkers(
-        DrawingContext context,
-        double thickness,
-        double timelineLength,
-        IReadOnlyList<float>? onsets,
-        bool isHorizontal,
-        TimelineRange range)
-    {
-        if (onsets is null || onsets.Count == 0 || timelineLength <= 0 || DurationSeconds <= 0)
-            return;
-
-        var startOffset = isHorizontal ? 20.0 : 6.0;
-        var endOffset = thickness - (isHorizontal ? 6.0 : 20.0);
-        var center = thickness / 2.0;
-
-        // 화면 구간의 시각을 온셋 번호로 되돌린다. 오프셋만큼 음원이 밀려 있는 것도 뺀다.
-        var firstOnset = 0;
-        var endOnset = onsets.Count;
-        if (!range.IsAll)
-        {
-            var (ratioFrom, ratioTo) = ToRatioRange(range, timelineLength);
-            var offsetRatio = AudioOffsetSeconds / DurationSeconds;
-            firstOnset = Math.Clamp((int)Math.Floor((ratioFrom - offsetRatio) * onsets.Count) - 1, 0, onsets.Count);
-            endOnset = Math.Clamp((int)Math.Ceiling((ratioTo - offsetRatio) * onsets.Count) + 2, 0, onsets.Count);
-        }
-
-        for (var i = firstOnset; i < endOnset; i++)
-        {
-            var alphaVal = onsets[i];
-            if (alphaVal <= 0.01f) continue;
-
-            var audioSeconds = OggPeakLoader.GetBucketRatio(i, onsets.Count) * DurationSeconds;
-            var ratio = AudioRatio(audioSeconds);
-            if (ratio < 0 || ratio > 1)
-                continue;
-
-            var alpha = (byte)Math.Clamp((int)(alphaVal * 135f + 10f), 25, 145);
-            var pen = GetOnsetPen(alpha);
-            var tPos = ToTimelinePosition(ratio, timelineLength);
-
-            if (tPos < -0.5 || tPos > timelineLength + 0.5)
-                continue;
-
-            if (alphaVal > 0.45f)
-            {
-                if (isHorizontal)
-                    context.DrawLine(pen, new Point(tPos, startOffset), new Point(tPos, endOffset));
-                else
-                    context.DrawLine(pen, new Point(startOffset, tPos), new Point(endOffset, tPos));
-            }
-            else
-            {
-                var halfLen = (thickness * 0.28) * (alphaVal / 0.45f);
-                if (isHorizontal)
-                    context.DrawLine(pen, new Point(tPos, center - halfLen), new Point(tPos, center + halfLen));
-                else
-                    context.DrawLine(pen, new Point(center - halfLen, tPos), new Point(center + halfLen, tPos));
             }
         }
     }

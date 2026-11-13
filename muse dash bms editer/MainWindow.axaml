@@ -118,7 +118,6 @@
                         Bpm="{Binding Bpm}"
                         Timeline="{Binding Timeline}"
                         Peaks="{Binding OggPeaks}"
-                        Onsets="{Binding OggOnsets}"
                         DurationSeconds="{Binding OggDurationSeconds}"
                         AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
                         PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
@@ -207,6 +206,28 @@
                         <TextBox Text="{Binding Genre}" />
                         <TextBlock Text="#BPM" />
                         <controls:NumberBox Value="{Binding Bpm}" Minimum="1" Maximum="999" FormatString="0.0000" />
+                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                    ToolTip.Tip="iBMSC = iBMSC 의 BPM 자동 측정(필터 없음) 식을 0.01 간격으로 훑은 값. 박이 곡 0초 근처에서 시작하지 않으면 엉뚱한 값(예: 3/4배)이 나올 수 있습니다.&#10;정밀 = 대역별 어택 곡선으로 0.002 단위까지 잰 값.&#10;둘 다 200 BPM 미만만 봅니다. 적용은 직접 하십시오.">
+                            <TextBlock Text="자동 BPM" Opacity="0.75" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding AutoBpmText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <!-- 파형으로 맞춰도 되는 곡인지, 소리로 들어야 하는 곡인지. 음원의 어택이 16분 격자에 붙는 정도로 자동 판정한다. -->
+                        <!-- 배경은 스타일로만 준다. Background 를 직접 쓰면 로컬 값이 이겨서 listen 색이 안 먹는다. -->
+                        <Border Classes="gridfit"
+                                Classes.listen="{Binding IsListenAdvised}"
+                                IsVisible="{Binding IsGridFitAdviceVisible}"
+                                CornerRadius="4" Padding="8,6"
+                                ToolTip.Tip="음원의 어택이 지금 BPM·오프셋의 16분 격자에서 여러 구간 연속으로 한쪽에 밀려 있는지로 자동 판정합니다. BPM 이나 오프셋을 바꾸면 다시 판정합니다.">
+                            <Border.Styles>
+                                <Style Selector="Border.gridfit">
+                                    <Setter Property="Background" Value="#1E3A2A" />
+                                </Style>
+                                <Style Selector="Border.gridfit.listen">
+                                    <Setter Property="Background" Value="#4A3510" />
+                                </Style>
+                            </Border.Styles>
+                            <TextBlock Text="{Binding GridFitAdviceText}" TextWrapping="Wrap" />
+                        </Border>
                         <TextBlock Text="#PLAYER" />
                         <ComboBox SelectedIndex="{Binding Player}" HorizontalAlignment="Stretch">
                             <ComboBoxItem Content="1 - Single" />
