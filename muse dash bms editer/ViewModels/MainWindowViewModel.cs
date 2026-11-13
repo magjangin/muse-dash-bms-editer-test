@@ -46,6 +46,46 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private IReadOnlyList<float>? _oggOnsets;
     [ObservableProperty] private double _oggDurationSeconds;
 
+    // iBMSC 방식 자동 BPM(IbmscBpmDetector). 음원을 열 때 함께 계산해 #BPM 아래에 보여 준다. 적용은 하지 않는다.
+    [ObservableProperty] private string _autoBpmText = AutoBpmNoAudioText;
+
+    public const string AutoBpmNoAudioText = "OGG를 열면 표시됩니다";
+
+    // 음원의 어택(GridFitAdvisor.FindAttacks). 음원을 열 때 한 번 뽑아 두고,
+    // BPM·타임라인·오프셋이 바뀔 때마다 "파형으로 맞춰도 되나, 소리로 들어야 하나"를 다시 고른다.
+    private AudioAttack[] _audioAttacks = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GridFitAdviceText))]
+    [NotifyPropertyChangedFor(nameof(IsGridFitAdviceVisible))]
+    [NotifyPropertyChangedFor(nameof(IsListenAdvised))]
+    private GridFitAdvice _gridFitAdvice;
+
+    public bool IsGridFitAdviceVisible => GridFitAdvice != GridFitAdvice.None;
+
+    public bool IsListenAdvised => GridFitAdvice == GridFitAdvice.Listen;
+
+    // 사용자는 "얼마나 벗어났는지"가 아니라 "어느 쪽으로 맞추라"만 원했다. 숫자는 넣지 않는다.
+    public string GridFitAdviceText => GridFitAdvice switch
+    {
+        GridFitAdvice.Waveform => "파형을 보고 맞춰도 됩니다. 이 곡은 격자에서 한쪽으로 크게 밀린 구간이 없습니다.",
+        GridFitAdvice.Listen => "소리로 들으며 맞추세요. 이 곡은 파형이 격자와 어긋나 보일 수 있습니다. 재생 배속을 0.3x 정도로 낮춰 들어 보세요.",
+        _ => string.Empty,
+    };
+
+    private void SetAudioAttacks(AudioAttack[] attacks)
+    {
+        _audioAttacks = attacks;
+        UpdateGridFitAdvice();
+    }
+
+    private void UpdateGridFitAdvice()
+    {
+        GridFitAdvice = _audioAttacks.Length == 0 || Bpm <= 0
+            ? GridFitAdvice.None
+            : GridFitAdvisor.Advise(_audioAttacks, Timeline, AudioOffsetSeconds);
+    }
+
     // 음원을 타임라인에서 뒤로 미는 양(ms).
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AudioOffsetSeconds))]
@@ -64,6 +104,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         Chart.Header.AudioOffsetMs = value;
         MarkDirty();
         FlashGridSync();
+        UpdateGridFitAdvice();
     }
 
     [RelayCommand]
@@ -269,6 +310,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         _timeline = null;
         OnPropertyChanged(nameof(Timeline));
+        UpdateGridFitAdvice();
     }
 
     // 오디오 길이가 요구하는 마디 수. 음원이 없으면 0.

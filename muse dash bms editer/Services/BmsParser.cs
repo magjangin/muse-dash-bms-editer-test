@@ -739,13 +739,13 @@ public static partial class BmsParser
 
             try
             {
-                if (fileNameIndex.Value.ContainsKey(Path.GetFileName(mediaPath)))
+                if (directory.Length > 0 && File.Exists(Path.Combine(directory, mediaPath)))
                 {
                     found++;
                     continue;
                 }
 
-                if (directory.Length > 0 && File.Exists(Path.Combine(directory, mediaPath)))
+                if (fileNameIndex.Value.ContainsKey(Path.GetFileName(mediaPath)))
                     found++;
             }
             catch (ArgumentException)

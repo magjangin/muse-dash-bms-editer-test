@@ -58,6 +58,9 @@ public sealed class NoteIconTests
     [InlineData("0311", NoteDirection.None)]
     [InlineData("040107", NoteDirection.None)]   // 보스 액션의 07·10 은 방향이 아니다
     [InlineData("040110", NoteDirection.None)]
+    [InlineData("000407", NoteDirection.None)]   // 씬 전환의 yy 는 씬 번호다(7번·10번 씬 전환에 삼각형이 붙었었다)
+    [InlineData("000410", NoteDirection.None)]
+    [InlineData("000412", NoteDirection.None)]
     public void 끝_두_자리로_위_아래_등장_방향을_안다(string uid, NoteDirection expected) =>
         Assert.Equal(expected, NoteIconCatalog.DirectionOf(uid));
 

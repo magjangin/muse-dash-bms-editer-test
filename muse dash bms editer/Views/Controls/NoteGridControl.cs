@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
@@ -199,7 +200,8 @@ public sealed class NoteGridControl : TimelineControlBase
     };
 
     // 격자 펜과 배경도 매 프레임 새로 만들 이유가 없다.
-    private static readonly IBrush GridBackgroundBrush = new ImmutableSolidColorBrush(Color.FromArgb(40, 30, 60, 120));
+    // 검정 바탕 위에 반투명 파랑(40, 30, 60, 120)을 합성한 불투명 색으로 한 번만 칠한다.
+    private static readonly IBrush GridBackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(5, 9, 19));
     private static readonly IPen LanePen = new ImmutablePen(Brushes.DimGray.ToImmutable(), 1);
     private static readonly IPen SubBeatPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
     private static readonly IPen BeatPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
@@ -224,10 +226,10 @@ public sealed class NoteGridControl : TimelineControlBase
 
     // 불변 브러시로 둔다. 보통 브러시는 만든 스레드만 쓸 수 있어서, 캐시가 UI 스레드 밖에서
     // 한 번이라도 채워지면 그 뒤의 렌더가 통째로 터진다(테스트에서 실제로 걸렸다).
-    private static readonly Dictionary<string, IImmutableSolidColorBrush> HoldBodyBrushes =
+    private static readonly ConcurrentDictionary<string, IImmutableSolidColorBrush> HoldBodyBrushes =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Dictionary<string, IPen> HoldLinkPens = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, IPen> HoldLinkPens = new(StringComparer.OrdinalIgnoreCase);
 
     // 종류마다 몸통 색이 달라야 샌드백이 홀드와 섞여 보이지 않는다.
     public static Color GetHoldColor(string kind) => kind.ToUpperInvariant() switch
@@ -236,27 +238,11 @@ public sealed class NoteGridControl : TimelineControlBase
         _ => Color.FromArgb(220, 255, 190, 40),
     };
 
-    private static IImmutableSolidColorBrush GetHoldBrush(string kind)
-    {
-        if (!HoldBodyBrushes.TryGetValue(kind, out var brush))
-        {
-            brush = new ImmutableSolidColorBrush(GetHoldColor(kind));
-            HoldBodyBrushes[kind] = brush;
-        }
+    private static IImmutableSolidColorBrush GetHoldBrush(string kind) =>
+        HoldBodyBrushes.GetOrAdd(kind, static k => new ImmutableSolidColorBrush(GetHoldColor(k)));
 
-        return brush;
-    }
-
-    private static IPen GetHoldLinkPen(string kind)
-    {
-        if (!HoldLinkPens.TryGetValue(kind, out var pen))
-        {
-            pen = new ImmutablePen(GetHoldBrush(kind), 4);
-            HoldLinkPens[kind] = pen;
-        }
-
-        return pen;
-    }
+    private static IPen GetHoldLinkPen(string kind) =>
+        HoldLinkPens.GetOrAdd(kind, static k => new ImmutablePen(GetHoldBrush(k), 4));
 
     static NoteGridControl()
     {
@@ -274,6 +260,39 @@ public sealed class NoteGridControl : TimelineControlBase
     private readonly Dictionary<string, FormattedText> _laneHeaderFormattedTextCache = new();
     private HashSet<BmsNote>? _cachedSelectedSet;
     private IReadOnlyList<BmsNote>? _lastObservedSelectedNotes;
+    private BmsNote[]? _sortedNotesByPos;
+    private IReadOnlyList<BmsNote>? _lastObservedNotes;
+    private Dictionary<string, int>? _laneIndexMap;
+    private IReadOnlyList<LaneDefinition>? _lastObservedLanesForMap;
+
+    private BmsNote[] GetSortedNotes(IReadOnlyList<BmsNote> notes)
+    {
+        if (ReferenceEquals(notes, _lastObservedNotes) && _sortedNotesByPos is not null)
+            return _sortedNotesByPos;
+
+        var copy = new BmsNote[notes.Count];
+        for (var i = 0; i < notes.Count; i++)
+            copy[i] = notes[i];
+
+        Array.Sort(copy, static (a, b) => (a.Measure + a.Position).CompareTo(b.Measure + b.Position));
+        _lastObservedNotes = notes;
+        _sortedNotesByPos = copy;
+        return copy;
+    }
+
+    private Dictionary<string, int> GetLaneIndexMap(IReadOnlyList<LaneDefinition> lanes)
+    {
+        if (ReferenceEquals(lanes, _lastObservedLanesForMap) && _laneIndexMap is not null)
+            return _laneIndexMap;
+
+        var map = new Dictionary<string, int>(lanes.Count, StringComparer.Ordinal);
+        for (var i = 0; i < lanes.Count; i++)
+            map[lanes[i].Id] = i;
+
+        _lastObservedLanesForMap = lanes;
+        _laneIndexMap = map;
+        return map;
+    }
 
     private FormattedText GetOrCreateLaneHeaderFormattedText(string header)
     {
@@ -448,7 +467,6 @@ public sealed class NoteGridControl : TimelineControlBase
 
         // 배경은 잘라 그리지 않는다. Avalonia 는 그린 자리만 클릭을 받으므로, 배경이 잘리면
         // 아직 안 그린 구간을 눌러도 격자가 클릭을 못 받는다.
-        context.FillRectangle(Brushes.Black, new Rect(0, 0, totalWidth, totalHeight));
         context.FillRectangle(GridBackgroundBrush, new Rect(0, 0, totalWidth, totalHeight));
 
 
@@ -538,7 +556,7 @@ public sealed class NoteGridControl : TimelineControlBase
         DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength, TimelineRange range)
     {
         var notes = Notes;
-        if (notes is null)
+        if (notes is null || notes.Count == 0)
             return;
 
         var selectedNotes = SelectedNotes;
@@ -549,24 +567,59 @@ public sealed class NoteGridControl : TimelineControlBase
         }
 
         var selectedSet = _cachedSelectedSet;
+        var sortedNotes = GetSortedNotes(notes);
+        var laneMap = GetLaneIndexMap(lanes);
 
         // 그림·이름표는 레인 폭 안에 들어가므로 이만큼만 여유를 두면 잘리지 않는다.
         var margin = Math.Max(laneThickness, MinimumNoteCullMargin);
 
+        var startIndex = 0;
+        var endIndex = sortedNotes.Length;
+        if (!range.IsAll && timelineLength > 0)
+        {
+            double minPos;
+            double maxPos;
+            if (DurationSeconds > 0 && Bpm > 0)
+            {
+                var timeline = EffectiveTimeline;
+                var (ratioFrom, ratioTo) = ToRatioRange(range, timelineLength);
+                var marginSeconds = (margin / timelineLength) * DurationSeconds;
+                minPos = timeline.MeasurePositionAt(Math.Max(0.0, (ratioFrom * DurationSeconds) - marginSeconds));
+                maxPos = timeline.MeasurePositionAt((ratioTo * DurationSeconds) + marginSeconds);
+            }
+            else
+            {
+                var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
+                if (rowHeight > 0)
+                {
+                    var from = IsHorizontalView ? range.Start : (timelineLength - range.End);
+                    var to = IsHorizontalView ? range.End : (timelineLength - range.Start);
+                    minPos = (from - margin) / rowHeight;
+                    maxPos = (to + margin) / rowHeight;
+                }
+                else
+                {
+                    minPos = double.NegativeInfinity;
+                    maxPos = double.PositiveInfinity;
+                }
+            }
+
+            startIndex = LowerBound(sortedNotes, minPos);
+            endIndex = UpperBound(sortedNotes, maxPos);
+        }
+
         // 노트마다 넣었다 빼면 그리기 명령이 두 개씩 는다. 한 번만 건다.
         using (context.PushRenderOptions(IconRenderOptions))
         {
-            for (var index = 0; index < notes.Count; index++)
+            for (var index = startIndex; index < endIndex; index++)
             {
-                var note = notes[index];
+                var note = sortedNotes[index];
 
-                // 시각 계산이 레인 찾기보다 싸고, 대부분의 노트는 여기서 걸러진다.
                 var noteTPos = ComputeNoteTPos(note, timelineLength);
                 if (!range.Contains(noteTPos, margin))
                     continue;
 
-                var laneIndex = FindLaneIndex(lanes, note.LaneId);
-                if (laneIndex == -1)
+                if (!laneMap.TryGetValue(note.LaneId, out var laneIndex))
                     continue;
 
                 DrawNote(context, note, noteTPos, laneIndex * laneThickness, laneThickness);
@@ -575,6 +628,36 @@ public sealed class NoteGridControl : TimelineControlBase
                     DrawSelection(context, note, noteTPos, laneIndex * laneThickness, laneThickness);
             }
         }
+    }
+
+    private static int LowerBound(BmsNote[] sortedNotes, double minPos)
+    {
+        var low = 0;
+        var high = sortedNotes.Length;
+        while (low < high)
+        {
+            var mid = low + ((high - low) / 2);
+            if (sortedNotes[mid].Measure + sortedNotes[mid].Position < minPos)
+                low = mid + 1;
+            else
+                high = mid;
+        }
+        return low;
+    }
+
+    private static int UpperBound(BmsNote[] sortedNotes, double maxPos)
+    {
+        var low = 0;
+        var high = sortedNotes.Length;
+        while (low < high)
+        {
+            var mid = low + ((high - low) / 2);
+            if (sortedNotes[mid].Measure + sortedNotes[mid].Position <= maxPos)
+                low = mid + 1;
+            else
+                high = mid;
+        }
+        return low;
     }
 
     private const double MinimumNoteCullMargin = 48.0;
