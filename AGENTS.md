@@ -65,6 +65,7 @@ muse dash bms editer/
 
 4. **타임라인 렌더링 (재생 중 프레임 유지의 핵심)**:
    - 커서·격자 맞춤 번쩍임·드래그 사각형은 [`TimelineControlBase`](muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs) 의 **겹 컨트롤(`OverlayLayer`)** 이 따로 그립니다. 재생 중에 격자·파형을 다시 기록하지 않기 위해서입니다 (`RenderOverlay` 를 재정의).
+   - 노트 그리기 루프 안에서는 StyledProperty(`IsHorizontalView`, `DurationSeconds`, `Timeline` 등)를 읽지 않습니다. `NoteGridControl` 은 렌더·클릭 한 번마다 `CaptureAxis()`/`CaptureNoteStyle()` 로 값을 한 번만 읽어 `TimelineAxis`·`NoteStyle` 에 담아 씁니다. `GetValue` 는 노트 수천 개 × 여러 번이면 프레임에 그대로 드러납니다.
    - 격자·파형은 `BeginTimelineRender()` 가 돌려준 구간만 그립니다. 뷰포트를 모르면(비트맵으로 뜰 때, ScrollViewer 밖) 전체를 그려 결과가 달라지지 않습니다.
    - 실측(180초 · 2,688노트 · 헤드리스 Debug): 커서가 화면에 있을 때 프레임 **31~34ms → 약 1.2ms**, 스크롤 약 9.5ms → 약 5.5ms.
 5. **재생 경로에서 UI 스레드를 막지 않기**:
