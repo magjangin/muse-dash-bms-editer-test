@@ -172,8 +172,12 @@ public sealed partial class MainWindowViewModel
         foreach (var (note, key) in rekeys)
             note.WavKey = key;
 
-        foreach (var note in removed)
-            Chart.Notes.Remove(note);
+        // 하나씩 Remove 하면 지울 때마다 목록 전체를 훑는다(DeleteNotes 와 같은 이유).
+        if (removed.Count > 0)
+        {
+            var removedSet = new HashSet<BmsNote>(removed);
+            Chart.Notes.RemoveAll(removedSet.Contains);
+        }
         Chart.Notes.AddRange(added);
 
         // 바꾼 노트와 새 전환 노트를 골라 두어 결과를 바로 눈으로 확인하게 한다.

@@ -107,7 +107,7 @@ public static partial class BmsParser
         foreach (var rawLine in rawLines)
         {
             var line = rawLine.Trim();
-            if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
+            if (string.IsNullOrEmpty(line) || !line.StartsWith('#')) continue;
 
             // 데이터 줄(#00111:...)은 2단계 몫이다. 헤더 정규식 열 개를 줄마다 헛돌리지 않는다.
             if (line.Length > 1 && char.IsAsciiDigit(line[1])) continue;
@@ -224,7 +224,7 @@ public static partial class BmsParser
 
             // '#' 로 시작하지 않는 줄은 주석이다(`*----` 같은 구분선이 흔하다).
             // 예전에는 원문 보존 대상에서 빠져 저장할 때 통째로 사라졌다.
-            if (!line.StartsWith("#"))
+            if (!line.StartsWith('#'))
             {
                 chart.PreservedLines.Add(new BmsRawLine
                 {
@@ -304,23 +304,19 @@ public static partial class BmsParser
             // 데이터 자르기 단위 크기 결정 (2자리 또는 3자리)
             var chunkSize = DetermineChunkSize(dataStr, has3DigitWav, chart.WavTable);
 
-            var chunks = new List<string>();
-            for (var i = 0; i < dataStr.Length; i += chunkSize)
-            {
-                if (i + chunkSize <= dataStr.Length)
-                {
-                    chunks.Add(dataStr.Substring(i, chunkSize).ToUpperInvariant());
-                }
-            }
-
-            var totalChunks = chunks.Count;
+            // 끝에 남는 자투리(칸 하나가 못 되는 글자)는 버린다. 칸 수는 꽉 찬 칸만 센다.
+            //
+            // 예전에는 칸마다 문자열을 잘라 목록에 담은 뒤 빈 칸("00")을 걸렀다. 데이터 줄은 대부분
+            // 빈 칸이라, 큰 차트를 열 때 버릴 문자열만 수십만 개 만들었다. 이제 노트가 있는 칸만 자른다.
+            var totalChunks = dataStr.Length / chunkSize;
             for (var index = 0; index < totalChunks; index++)
             {
-                var code = chunks[index];
-                
-                // 빈 데이터("00", "000") 건너뛰기
-                if (code == "00" || code == "000") continue;
+                var slot = dataStr.AsSpan(index * chunkSize, chunkSize);
 
+                // 빈 데이터("00", "000") 건너뛰기
+                if (!slot.ContainsAnyExcept('0')) continue;
+
+                var code = new string(slot).ToUpperInvariant();
                 var position = (double)index / totalChunks;
                 chart.Notes.Add(new BmsNote
                 {

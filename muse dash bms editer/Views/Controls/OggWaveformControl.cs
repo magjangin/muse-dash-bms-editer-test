@@ -261,23 +261,24 @@ public sealed class OggWaveformControl : TimelineControlBase
     }
 
     private static readonly Typeface MeasureLabelTypeface = new("Inter, Arial, sans-serif");
-    private readonly Dictionary<int, (string Text, FormattedText Formatted)> _measureLabelCache = new();
+    private readonly Dictionary<int, (double Seconds, FormattedText Formatted)> _measureLabelCache = new();
 
+    // 마디 이름표. 마디의 시각이 그대로면 예전 것을 다시 쓴다.
+    // 예전에는 캐시를 확인하려고 매 렌더·마디마다 글자를 새로 만들어 비교했다.
     private FormattedText GetOrCreateMeasureLabel(int measure, double seconds)
     {
-        var text = $"#{measure:D3} ({seconds:F4}s)";
-        if (_measureLabelCache.TryGetValue(measure, out var cached) && cached.Text == text)
+        if (_measureLabelCache.TryGetValue(measure, out var cached) && cached.Seconds == seconds)
             return cached.Formatted;
 
         var formatted = new FormattedText(
-            text,
+            $"#{measure:D3} ({seconds:F4}s)",
             System.Globalization.CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             MeasureLabelTypeface,
             11.0,
             Brushes.LightGray);
 
-        _measureLabelCache[measure] = (text, formatted);
+        _measureLabelCache[measure] = (seconds, formatted);
         return formatted;
     }
 
@@ -329,9 +330,25 @@ public sealed class OggWaveformControl : TimelineControlBase
     {
         var (from, to) = OggPeakLoader.GetBucketRange(startRatio, endRatio, peaks.Count);
 
+        // 보통은 float[] 이다. 인터페이스 인덱서를 버킷마다 부르지 않고 구간을 통째로 훑는다.
+        if (peaks is float[] array)
+            return to > from ? ArrayMax(array.AsSpan(from, to - from)) : 0.0;
+
         var peak = 0.0;
         for (var i = from; i < to; i++)
             peak = Math.Max(peak, peaks[i]);
+
+        return peak;
+    }
+
+    private static double ArrayMax(ReadOnlySpan<float> span)
+    {
+        var peak = 0f;
+        foreach (var value in span)
+        {
+            if (value > peak)
+                peak = value;
+        }
 
         return peak;
     }

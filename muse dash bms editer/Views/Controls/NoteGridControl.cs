@@ -333,14 +333,10 @@ public sealed class NoteGridControl : TimelineControlBase
         }
     }
 
-    // 노트 그림이 있으면 그리고 true. 그림은 가로·세로 중 긴 쪽을 지름에 맞추고 비율은 유지한다.
+    // 노트 그림을 그린다. 그림은 가로·세로 중 긴 쪽을 지름에 맞추고 비율은 유지한다.
     // diameter 는 배율을 곱하기 전 크기이고, 레인 폭을 넘지 않게 자른다.
-    private bool TryDrawNoteIcon(DrawingContext context, BmsNote note, Point center, double diameter, double laneThickness)
+    private void DrawNoteIcon(DrawingContext context, NoteIcon icon, Point center, double diameter, double laneThickness)
     {
-        var icons = NoteIcons;
-        if (icons is null || !icons.TryGetValue(note.WavKey, out var icon))
-            return false;
-
         var size = Math.Min(diameter * icon.Scale, laneThickness - 2);
         var image = icon.Image;
         var scale = size / Math.Max(image.PixelSize.Width, image.PixelSize.Height);
@@ -350,22 +346,28 @@ public sealed class NoteGridControl : TimelineControlBase
         context.DrawImage(image, new Rect(0, 0, image.PixelSize.Width, image.PixelSize.Height),
             new Rect(center.X - (width / 2), center.Y - (height / 2), width, height));
 
-        if (icon.Direction != NoteDirection.None)
+        if (icon.Direction != NoteDirection.None || icon.Speed is not null)
         {
             // 그림의 오른쪽 위 구석. 레인 밖으로 나가지 않게 안으로 당긴다.
             var half = Math.Min(5.0, (laneThickness - 2) / 4);
+            var radius = half + 1.5;
             var badge = new Point(
-                Math.Min(center.X + (width / 2) - half, center.X + (laneThickness / 2) - half - 1),
-                center.Y - (height / 2) + half);
+                Math.Min(center.X + (width / 2) - radius, center.X + (laneThickness / 2) - radius - 1),
+                center.Y - (height / 2) + radius);
 
-            using (context.PushTransform(Matrix.CreateTranslation(badge.X, badge.Y)))
-                context.DrawGeometry(DirectionBadgeBrush, DirectionBadgePen, GetDirectionBadge(icon.Direction, half));
+            // 속도 동그라미를 먼저 깔고 방향 삼각형을 그 위에 얹는다.
+            if (icon.Speed is int speed && speed >= 1 && speed <= SpeedBadgeBrushes.Length)
+                context.DrawEllipse(SpeedBadgeBrushes[speed - 1], BadgeOutlinePen, badge, radius, radius);
+
+            if (icon.Direction != NoteDirection.None)
+            {
+                using (context.PushTransform(Matrix.CreateTranslation(badge.X, badge.Y)))
+                    context.DrawGeometry(DirectionBadgeBrush, BadgeOutlinePen, GetDirectionBadge(icon.Direction, half));
+            }
         }
 
         if (icon.Marker != BossMarker.None)
             DrawBossMarker(context, icon.Marker, center, width, height);
-
-        return true;
     }
 
     // 방향 삼각형. 크기는 레인 폭으로만 정해져서, 노트마다 새로 만들지 않고 두 장을 돌려 쓴다.
@@ -445,11 +447,15 @@ public sealed class NoteGridControl : TimelineControlBase
     }
 
     private static readonly IBrush DirectionBadgeBrush = new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
-    private static readonly IPen DirectionBadgePen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
+    private static readonly IPen BadgeOutlinePen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
 
-    // 그림이 있는 노트의 지름. 단색 동그라미(15px)보다 키워서 그림이 알아볼 만하게 한다.
-    // 이웃 노트와의 간격은 줌과 BPM 에 달려 있어 여기서 맞추지 않는다. (docs/plans/note_circle_icon.md §1-2)
-    private double NoteIconDiameter(double laneThickness) => Math.Min(38, laneThickness - 4);
+    // 속도 1·2·3 (초록·파랑·빨강). 번호 - 1 이 자리다.
+    private static readonly IBrush[] SpeedBadgeBrushes =
+    {
+        new ImmutableSolidColorBrush(Color.FromRgb(75, 185, 100)),
+        new ImmutableSolidColorBrush(Color.FromRgb(60, 145, 240)),
+        new ImmutableSolidColorBrush(Color.FromRgb(235, 70, 85)),
+    };
 
     public override void Render(DrawingContext context)
     {
@@ -569,44 +575,12 @@ public sealed class NoteGridControl : TimelineControlBase
         var selectedSet = _cachedSelectedSet;
         var sortedNotes = GetSortedNotes(notes);
         var laneMap = GetLaneIndexMap(lanes);
+        var axis = CaptureAxis(timelineLength);
+        var style = CaptureNoteStyle(laneThickness);
 
         // 그림·이름표는 레인 폭 안에 들어가므로 이만큼만 여유를 두면 잘리지 않는다.
         var margin = Math.Max(laneThickness, MinimumNoteCullMargin);
-
-        var startIndex = 0;
-        var endIndex = sortedNotes.Length;
-        if (!range.IsAll && timelineLength > 0)
-        {
-            double minPos;
-            double maxPos;
-            if (DurationSeconds > 0 && Bpm > 0)
-            {
-                var timeline = EffectiveTimeline;
-                var (ratioFrom, ratioTo) = ToRatioRange(range, timelineLength);
-                var marginSeconds = (margin / timelineLength) * DurationSeconds;
-                minPos = timeline.MeasurePositionAt(Math.Max(0.0, (ratioFrom * DurationSeconds) - marginSeconds));
-                maxPos = timeline.MeasurePositionAt((ratioTo * DurationSeconds) + marginSeconds);
-            }
-            else
-            {
-                var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-                if (rowHeight > 0)
-                {
-                    var from = IsHorizontalView ? range.Start : (timelineLength - range.End);
-                    var to = IsHorizontalView ? range.End : (timelineLength - range.Start);
-                    minPos = (from - margin) / rowHeight;
-                    maxPos = (to + margin) / rowHeight;
-                }
-                else
-                {
-                    minPos = double.NegativeInfinity;
-                    maxPos = double.PositiveInfinity;
-                }
-            }
-
-            startIndex = LowerBound(sortedNotes, minPos);
-            endIndex = UpperBound(sortedNotes, maxPos);
-        }
+        var (startIndex, endIndex) = VisibleNoteIndexRange(sortedNotes, axis, range, margin);
 
         // 노트마다 넣었다 빼면 그리기 명령이 두 개씩 는다. 한 번만 건다.
         using (context.PushRenderOptions(IconRenderOptions))
@@ -615,19 +589,69 @@ public sealed class NoteGridControl : TimelineControlBase
             {
                 var note = sortedNotes[index];
 
-                var noteTPos = ComputeNoteTPos(note, timelineLength);
+                var noteTPos = axis.PositionOf(note);
                 if (!range.Contains(noteTPos, margin))
                     continue;
 
                 if (!laneMap.TryGetValue(note.LaneId, out var laneIndex))
                     continue;
 
-                DrawNote(context, note, noteTPos, laneIndex * laneThickness, laneThickness);
+                var icon = style.IconOf(note);
+                DrawNote(context, style, note, icon, noteTPos, laneIndex * laneThickness);
 
                 if (selectedSet is not null && selectedSet.Contains(note))
-                    DrawSelection(context, note, noteTPos, laneIndex * laneThickness, laneThickness);
+                    DrawSelection(context, style, icon, noteTPos, laneIndex * laneThickness);
             }
         }
+    }
+
+    // 정렬된 노트에서 range(+여유) 안에 들 수 있는 노트의 [시작, 끝) 번호. 전부 그릴 때는 전체.
+    private (int Start, int End) VisibleNoteIndexRange(BmsNote[] sortedNotes, TimelineAxis axis, TimelineRange range, double margin)
+    {
+        if (range.IsAll || axis.Length <= 0)
+            return (0, sortedNotes.Length);
+
+        double minPos;
+        double maxPos;
+        if (axis.Timeline is { } timeline)
+        {
+            var (ratioFrom, ratioTo) = ToRatioRange(range, axis.Length);
+            var marginSeconds = (margin / axis.Length) * axis.DurationSeconds;
+            minPos = timeline.MeasurePositionAt(Math.Max(0.0, (ratioFrom * axis.DurationSeconds) - marginSeconds));
+            maxPos = timeline.MeasurePositionAt((ratioTo * axis.DurationSeconds) + marginSeconds);
+        }
+        else if (axis.RowHeight > 0)
+        {
+            var from = axis.IsHorizontal ? range.Start : (axis.Length - range.End);
+            var to = axis.IsHorizontal ? range.End : (axis.Length - range.Start);
+            minPos = (from - margin) / axis.RowHeight;
+            maxPos = (to + margin) / axis.RowHeight;
+        }
+        else
+        {
+            return (0, sortedNotes.Length);
+        }
+
+        return (LowerBound(sortedNotes, minPos), UpperBound(sortedNotes, maxPos));
+    }
+
+    // 노트 모양을 정하는 값들. 노트마다 다시 읽지 않도록 한 렌더에 한 번만 읽는다(CaptureAxis 참고).
+    private NoteStyle CaptureNoteStyle(double laneThickness)
+    {
+        var circle = IsCircleNoteShape;
+        return new NoteStyle(IsHorizontalView, circle, circle ? NoteIcons : null, laneThickness);
+    }
+
+    private readonly record struct NoteStyle(
+        bool IsHorizontal, bool IsCircle, IReadOnlyDictionary<string, NoteIcon>? Icons, double LaneThickness)
+    {
+        // 그림은 동그라미 모양일 때만 쓴다. 막대 모양에서는 그림이 있어도 단색이다.
+        public NoteIcon? IconOf(BmsNote note) =>
+            Icons is not null && Icons.TryGetValue(note.WavKey, out var icon) ? icon : null;
+
+        // 그림이 있는 노트의 지름. 단색 동그라미(15px)보다 키워서 그림이 알아볼 만하게 한다.
+        // 이웃 노트와의 간격은 줌과 BPM 에 달려 있어 여기서 맞추지 않는다. (docs/plans/note_circle_icon.md §1-2)
+        public double IconDiameter => Math.Min(38, LaneThickness - 4);
     }
 
     private static int LowerBound(BmsNote[] sortedNotes, double minPos)
@@ -662,39 +686,45 @@ public sealed class NoteGridControl : TimelineControlBase
 
     private const double MinimumNoteCullMargin = 48.0;
 
-    private void DrawNote(DrawingContext context, BmsNote note, double noteTPos, double laneOffset, double laneThickness)
+    private void DrawNote(DrawingContext context, in NoteStyle style, BmsNote note, NoteIcon? icon, double noteTPos, double laneOffset)
     {
-        var noteBrush = GetNoteBrush(note.LaneId);
+        var laneThickness = style.LaneThickness;
 
-        if (IsCircleNoteShape)
+        if (style.IsCircle)
         {
-            var radius = Math.Min(7.5, (laneThickness - 4) / 2);
-            var center = IsHorizontalView
+            var center = style.IsHorizontal
                 ? new Point(noteTPos, laneOffset + laneThickness / 2)
                 : new Point(laneOffset + laneThickness / 2, noteTPos);
 
-            if (!TryDrawNoteIcon(context, note, center, NoteIconDiameter(laneThickness), laneThickness))
-                context.DrawEllipse(noteBrush, NoteOutlinePen, center, radius, radius);
+            if (icon is not null)
+            {
+                DrawNoteIcon(context, icon, center, style.IconDiameter, laneThickness);
+                return;
+            }
 
+            var radius = Math.Min(7.5, (laneThickness - 4) / 2);
+            context.DrawEllipse(GetNoteBrush(note.LaneId), NoteOutlinePen, center, radius, radius);
             return;
         }
 
-        var rect = IsHorizontalView
+        var rect = style.IsHorizontal
             ? new Rect(noteTPos - 3, laneOffset + 2, 6, laneThickness - 4)
             : new Rect(laneOffset + 2, noteTPos - 3, laneThickness - 4, 6);
 
-        context.FillRectangle(noteBrush, rect);
+        context.FillRectangle(GetNoteBrush(note.LaneId), rect);
         context.DrawRectangle(null, NoteOutlinePen, rect);
     }
 
-    private void DrawSelection(DrawingContext context, BmsNote note, double noteTPos, double laneOffset, double laneThickness)
+    private static void DrawSelection(DrawingContext context, in NoteStyle style, NoteIcon? icon, double noteTPos, double laneOffset)
     {
-        // 그림이 있는 노트는 그림보다 2px 큰 테두리로 감싼다. 없으면 예전 그대로 14px.
-        var half = 7.0;
-        if (IsCircleNoteShape && NoteIcons is { } iconMap && iconMap.TryGetValue(note.WavKey, out var selectedIcon))
-            half = Math.Min((laneThickness / 2) - 1, (NoteIconDiameter(laneThickness) * selectedIcon.Scale / 2) + 2);
+        var laneThickness = style.LaneThickness;
 
-        var highlightRect = IsHorizontalView
+        // 그림이 있는 노트는 그림보다 2px 큰 테두리로 감싼다. 없으면 예전 그대로 14px.
+        var half = icon is null
+            ? 7.0
+            : Math.Min((laneThickness / 2) - 1, (style.IconDiameter * icon.Scale / 2) + 2);
+
+        var highlightRect = style.IsHorizontal
             ? new Rect(noteTPos - half, laneOffset + 1, half * 2, laneThickness - 2)
             : new Rect(laneOffset + 1, noteTPos - half, laneThickness - 2, half * 2);
 
@@ -703,7 +733,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
     // 홀드 몸통.
     //
-    // 양 끝 좌표를 각각 ComputeNoteTPos 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
+    // 양 끝 좌표를 각각 TimelineAxis.PositionOf 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
     // 마디 단위로 선형 보간해 늘리면 BPM 변화나 변박 구간을 지나는 홀드의 끝이 끝 노트와 어긋난다.
     private void DrawHoldBodies(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength, TimelineRange range)
     {
@@ -711,35 +741,36 @@ public sealed class NoteGridControl : TimelineControlBase
         if (links is null || links.Count == 0)
             return;
 
+        var axis = CaptureAxis(timelineLength);
+        var laneMap = GetLaneIndexMap(lanes);
+
         for (var i = 0; i < links.Count; i++)
         {
             var link = links[i];
-            var headPos = ComputeNoteTPos(link.Head, timelineLength);
-            var tailPos = ComputeNoteTPos(link.Tail, timelineLength);
+            var headPos = axis.PositionOf(link.Head);
+            var tailPos = axis.PositionOf(link.Tail);
 
             // 머리와 꼬리가 둘 다 화면 밖이어도 몸통이 화면을 가로지를 수 있어 구간으로 본다.
             if (!range.Overlaps(Math.Min(headPos, tailPos), Math.Max(headPos, tailPos)))
                 continue;
 
-            var headLane = FindLaneIndex(lanes, link.Head.LaneId);
-            var tailLane = FindLaneIndex(lanes, link.Tail.LaneId);
-
             // 뮤즈 대시는 채널 안에서만 짝지으므로 두 레인은 같다. 다른 프로파일을 붙였을 때
             // 몸통이 조용히 사라지지 않도록, 레인이 갈리면 선으로 이어 둔다.
-            if (headLane == -1 || tailLane == -1)
+            if (!laneMap.TryGetValue(link.Head.LaneId, out var headLane)
+                || !laneMap.TryGetValue(link.Tail.LaneId, out var tailLane))
                 continue;
 
             if (headLane == tailLane)
             {
-                var body = ComputeHoldBodyRect(headLane * laneThickness, laneThickness, headPos, tailPos, IsHorizontalView);
+                var body = ComputeHoldBodyRect(headLane * laneThickness, laneThickness, headPos, tailPos, axis.IsHorizontal);
                 context.FillRectangle(GetHoldBrush(link.Kind), body);
             }
             else
             {
                 context.DrawLine(
                     GetHoldLinkPen(link.Kind),
-                    LaneCenter(headLane, headPos, laneThickness),
-                    LaneCenter(tailLane, tailPos, laneThickness));
+                    LaneCenter(axis.IsHorizontal, headLane, headPos, laneThickness),
+                    LaneCenter(axis.IsHorizontal, tailLane, tailPos, laneThickness));
             }
         }
     }
@@ -750,19 +781,21 @@ public sealed class NoteGridControl : TimelineControlBase
         if (problems is null || problems.Count == 0)
             return;
 
+        var axis = CaptureAxis(timelineLength);
+        var laneMap = GetLaneIndexMap(lanes);
+
         for (var i = 0; i < problems.Count; i++)
         {
             var note = problems[i];
-            var tPos = ComputeNoteTPos(note, timelineLength);
+            var tPos = axis.PositionOf(note);
             if (!range.Contains(tPos, MinimumNoteCullMargin))
                 continue;
 
-            var laneIndex = FindLaneIndex(lanes, note.LaneId);
-            if (laneIndex == -1)
+            if (!laneMap.TryGetValue(note.LaneId, out var laneIndex))
                 continue;
 
             var laneOffset = laneIndex * laneThickness;
-            var rect = IsHorizontalView
+            var rect = axis.IsHorizontal
                 ? new Rect(tPos - 10, laneOffset - 1, 20, laneThickness + 2)
                 : new Rect(laneOffset - 1, tPos - 10, laneThickness + 2, 20);
 
@@ -783,33 +816,45 @@ public sealed class NoteGridControl : TimelineControlBase
             : new Rect(laneOffset + inset, start, width, length);
     }
 
-    private Point LaneCenter(int laneIndex, double tPos, double laneThickness) =>
-        IsHorizontalView
+    private static Point LaneCenter(bool isHorizontal, int laneIndex, double tPos, double laneThickness) =>
+        isHorizontal
             ? new Point(tPos, laneIndex * laneThickness + laneThickness / 2)
             : new Point(laneIndex * laneThickness + laneThickness / 2, tPos);
 
-    private double ComputeNoteTPos(BmsNote note, double timelineLength)
+    // 노트 위치를 구하는 데 필요한 값들을 한 번에 읽어 둔다.
+    //
+    // StyledProperty 읽기(GetValue)는 값 저장소를 뒤지는 일이라 공짜가 아니다. 예전에는 노트 하나마다
+    // DurationSeconds·Bpm·Timeline·IsHorizontalView·RowHeight·VerticalZoom 을 매번 다시 읽어서,
+    // 노트 수천 개짜리 차트는 한 프레임에 GetValue 가 수만 번 돌았다. 한 렌더·한 클릭 동안은 바뀌지 않는다.
+    private TimelineAxis CaptureAxis(double timelineLength)
     {
-        if (DurationSeconds > 0 && Bpm > 0)
-        {
-            // 노트의 시각도 격자와 같은 곳에서 구해야 둘이 어긋나지 않는다.
-            var seconds = EffectiveTimeline.SecondsAt(note.Measure + note.Position);
-            return ToTimelinePosition(seconds / DurationSeconds, timelineLength);
-        }
-
-        var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-        var totalOffset = (note.Measure + note.Position) * rowHeight;
-        return IsHorizontalView ? totalOffset : (timelineLength - totalOffset);
+        var duration = DurationSeconds;
+        var useTimeline = duration > 0 && Bpm > 0;
+        return new TimelineAxis(
+            IsHorizontalView,
+            timelineLength,
+            duration,
+            useTimeline ? EffectiveTimeline : null,
+            useTimeline ? 0.0 : RowHeight * VerticalZoom * GetGridSpacingScale());
     }
 
-    private static int FindLaneIndex(IReadOnlyList<LaneDefinition> lanes, string laneId)
+    // 마디 위치 → 타임라인 좌표. 격자(EnumerateGridLines)와 같은 식이어야 노트와 격자가 어긋나지 않는다.
+    private readonly record struct TimelineAxis(
+        bool IsHorizontal, double Length, double DurationSeconds, ChartTimeline? Timeline, double RowHeight)
     {
-        for (var j = 0; j < lanes.Count; j++)
+        public double PositionOf(BmsNote note) => PositionOf(note.Measure + note.Position);
+
+        public double PositionOf(double measurePosition)
         {
-            if (lanes[j].Id == laneId)
-                return j;
+            if (Timeline is { } timeline)
+            {
+                var ratio = timeline.SecondsAt(measurePosition) / DurationSeconds;
+                return IsHorizontal ? ratio * Length : (1.0 - ratio) * Length;
+            }
+
+            var offset = measurePosition * RowHeight;
+            return IsHorizontal ? offset : Length - offset;
         }
-        return -1;
     }
 
     private static Rect NormalizedRect(Point a, Point b)
@@ -949,17 +994,25 @@ public sealed class NoteGridControl : TimelineControlBase
         if (timelineLength <= 0)
             return;
         var selectionRect = NormalizedRect(dragStart, dragEnd).Inflate(2);
+        var axis = CaptureAxis(timelineLength);
+        var laneMap = GetLaneIndexMap(lanes);
+
+        // 사각형이 덮는 시간 구간의 노트만 본다. 예전에는 드래그를 놓을 때마다 곡 전체 노트를 훑었다.
+        var sortedNotes = GetSortedNotes(notes);
+        var dragRange = axis.IsHorizontal
+            ? new TimelineRange(selectionRect.Left, selectionRect.Right)
+            : new TimelineRange(selectionRect.Top, selectionRect.Bottom);
+        var (startIndex, endIndex) = VisibleNoteIndexRange(sortedNotes, axis, dragRange, MinimumNoteCullMargin);
 
         var selected = new List<BmsNote>();
-        for (var i = 0; i < notes.Count; i++)
+        for (var i = startIndex; i < endIndex; i++)
         {
-            var note = notes[i];
-            var laneIndex = FindLaneIndex(lanes, note.LaneId);
-            if (laneIndex == -1) continue;
+            var note = sortedNotes[i];
+            if (!laneMap.TryGetValue(note.LaneId, out var laneIndex)) continue;
 
-            var noteTPos = ComputeNoteTPos(note, timelineLength);
+            var noteTPos = axis.PositionOf(note);
             var laneOffset = laneIndex * laneThickness;
-            var noteCenter = IsHorizontalView
+            var noteCenter = axis.IsHorizontal
                 ? new Point(noteTPos, laneOffset + laneThickness / 2)
                 : new Point(laneOffset + laneThickness / 2, noteTPos);
 

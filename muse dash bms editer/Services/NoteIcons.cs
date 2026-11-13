@@ -31,12 +31,13 @@ public enum BossMarker
 // 격자에 그릴 노트 그림 한 장. 그림은 이미 그림자와 빈 여백을 걷어낸 상태다.
 public sealed class NoteIcon
 {
-    public NoteIcon(Bitmap image, double scale, NoteDirection direction = NoteDirection.None, BossMarker marker = BossMarker.None)
+    public NoteIcon(Bitmap image, double scale, NoteDirection direction = NoteDirection.None, BossMarker marker = BossMarker.None, int? speed = null)
     {
         Image = image;
         Scale = scale;
         Direction = direction;
         Marker = marker;
+        Speed = speed;
     }
 
     // 보스 등장·퇴장·액션 시작·끝. 같은 보스 그림이라 구석에 글자를 얹어서 구분한다.
@@ -44,6 +45,9 @@ public sealed class NoteIcon
 
     // 위/아래 등장 노트는 같은 그림이라, 그림 구석에 작은 삼각형을 얹어서 구분한다.
     public NoteDirection Direction { get; }
+
+    // 속도(1~3). 속도가 없는 노트(씬 전환·보스 연출 등)는 null.
+    public int? Speed { get; }
 
     public Bitmap Image { get; }
 
@@ -250,14 +254,19 @@ public sealed class NoteIconCatalog : IDisposable
             var baseUid = SpeedOneOf(uid);
             try
             {
-                // 속도별 그림 파일이 따로 있으면 그것을, 없으면 속도 1 그림을 쓴다.
-                using var source = OpenSource(uid) ?? (baseUid == uid ? null : OpenSource(baseUid));
-                if (source is not null)
+                // 속도별 그림 파일이 따로 있으면 그것을, 없으면 속도 1 그림(Bitmap)을 공유해서 쓴다.
+                Bitmap? prepared = null;
+                using (var ownSource = OpenSource(uid))
                 {
-                    var prepared = NoteIconImage.Prepare(source, IsHammer(uid));
-                    if (prepared is not null)
-                        icon = new NoteIcon(prepared, ScaleFor(baseUid), DirectionOf(baseUid), BossMarkerOf(uid));
+                    if (ownSource is not null)
+                        prepared = NoteIconImage.Prepare(ownSource, IsHammer(uid));
                 }
+
+                if (prepared is null && baseUid != uid)
+                    prepared = Find(baseUid)?.Image;
+
+                if (prepared is not null)
+                    icon = new NoteIcon(prepared, ScaleFor(baseUid), DirectionOf(baseUid), BossMarkerOf(uid), NoteSpeed.Of(uid));
             }
             catch (Exception)
             {
