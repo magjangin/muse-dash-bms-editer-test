@@ -79,26 +79,40 @@ public static partial class BmsParser
     // baseDirectory: 키음 상대 경로의 기준 폴더. 자동 저장본처럼 원본 폴더 밖에 있는 파일을 읽을 때 넘긴다.
     public static BmsParseResult Parse(string filePath, string? baseDirectory = null)
     {
-        var chart = new BmsChart();
-        var parsedBpm = 120.0;
-        var measureCount = 32;
-        var wavItems = new List<BmsWavItem>();
-
         if (!File.Exists(filePath))
         {
-            chart.Header.Bpm = parsedBpm;
-            chart.MeasureCount = measureCount;
-            return new BmsParseResult(chart, wavItems, DefaultEncoding);
+            var empty = new BmsChart();
+            empty.Header.Bpm = 120.0;
+            empty.MeasureCount = 32;
+            return new BmsParseResult(empty, new List<BmsWavItem>(), DefaultEncoding);
         }
 
-        var directory = baseDirectory ?? Path.GetDirectoryName(filePath) ?? "";
-
         // 적힌 경로에 파일이 없을 때만 만든다. 대부분의 차트는 적힌 그대로라 폴더를 훑을 일이 없다.
-        var mediaPathIndex = new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory));
-
         // 파일을 바이트로 한 번만 읽고 인코딩을 가려낸다. 어느 인코딩으로 읽었는지는
         // 결과에 실어 보내, 저장할 때 그대로 되돌려 쓴다.
-        var (rawLines, encoding) = ReadAllLines(filePath, directory, mediaPathIndex);
+        var (rawLines, encoding, directory, mediaPathIndex) = ReadLinesWithMetadata(filePath, baseDirectory);
+        return ParseLines(rawLines, encoding, directory, mediaPathIndex);
+    }
+
+    internal static (string[] Lines, Encoding Encoding, string Directory, Lazy<Dictionary<string, string>> MediaPathIndex) ReadLinesWithMetadata(
+        string filePath, string? baseDirectory = null)
+    {
+        var directory = baseDirectory ?? Path.GetDirectoryName(filePath) ?? "";
+        var mediaPathIndex = new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory));
+        var (lines, encoding) = ReadAllLines(filePath, directory, mediaPathIndex);
+        return (lines, encoding, directory, mediaPathIndex);
+    }
+
+    internal static BmsParseResult ParseLines(
+        string[] rawLines,
+        Encoding encoding,
+        string directory,
+        Lazy<Dictionary<string, string>>? mediaPathIndex = null)
+    {
+        var chart = new BmsChart();
+        var parsedBpm = 120.0;
+        var wavItems = new List<BmsWavItem>();
+        mediaPathIndex ??= new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory));
 
         var maxMeasure = 0;
         var has3DigitWav = false;
@@ -331,7 +345,7 @@ public static partial class BmsParser
             }
         }
 
-        measureCount = Math.Max(32, maxMeasure + 1);
+        var measureCount = Math.Max(32, maxMeasure + 1);
         chart.Header.Bpm = parsedBpm;
         chart.MeasureCount = measureCount;
         return new BmsParseResult(chart, wavItems, encoding);
@@ -677,7 +691,7 @@ public static partial class BmsParser
         byte[] bytes, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         Encoding? bestEncoding = null;
-        string? bestText = null;
+        string[]? bestLines = null;
         var bestResolved = -1;
         var bestScore = int.MinValue;
 
@@ -694,32 +708,33 @@ public static partial class BmsParser
             }
 
             var text = candidate.GetString(bytes);
-            var resolved = CountResolvableMedia(text, directory, fileNameIndex);
+            var lines = SplitLines(text);
+            var resolved = CountResolvableMedia(lines, directory, fileNameIndex);
             var score = ScoreLegacyText(text);
 
             if (resolved > bestResolved || (resolved == bestResolved && score > bestScore))
             {
                 bestEncoding = candidate;
-                bestText = text;
+                bestLines = lines;
                 bestResolved = resolved;
                 bestScore = score;
             }
         }
 
-        if (bestEncoding is null || bestText is null)
+        if (bestEncoding is null || bestLines is null)
         {
             // CodePages 공급자가 없는 환경. 손실을 감수하고라도 읽기는 해야 한다.
             return (SplitLines(Encoding.UTF8.GetString(bytes)), DefaultEncoding);
         }
 
-        return (SplitLines(bestText), bestEncoding);
+        return (bestLines, bestEncoding);
     }
 
-    private static int CountResolvableMedia(string text, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
+    private static int CountResolvableMedia(string[] lines, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         var found = 0;
 
-        foreach (var line in SplitLines(text))
+        foreach (var line in lines)
         {
             var trimmed = line.Trim();
             if (trimmed.Length == 0 || trimmed[0] != '#')

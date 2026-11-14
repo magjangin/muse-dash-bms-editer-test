@@ -217,14 +217,13 @@ public partial class MainWindow
         }
         else if (string.Equals(extension, ".wav", StringComparison.OrdinalIgnoreCase))
         {
-            foreach (var path in paths.Where(p => string.Equals(Path.GetExtension(p), ".wav", StringComparison.OrdinalIgnoreCase)))
-            {
-                if (vm.AddWav(path))
-                    continue;
+            var wavPaths = paths
+                .Where(p => string.Equals(Path.GetExtension(p), ".wav", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
 
+            vm.AddWavs(wavPaths);
+            if (vm.LastErrorMessage is not null)
                 await ConfirmWindow.ShowMessageAsync(this, $"키음을 추가하지 못했습니다.\n\n{vm.LastErrorMessage}", "키음 추가 실패");
-                return;
-            }
         }
     }
 

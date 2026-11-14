@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using bms_editer.Models;
@@ -29,7 +30,21 @@ public static class KeyboardChartReader
     public static KeyboardChart Read(string filePath)
     {
         var lines = BmsParser.ReadLinesForAnalysis(filePath);
+        return ReadLines(lines, filePath);
+    }
 
+    // 건반 분석과 전체 파싱을 같은 파일에서 연달아 할 때 디스크 읽기와 인코딩 판별을 한 번만 돈다.
+    public static (KeyboardChart Source, BmsParseResult Parsed) ReadWithChart(string filePath)
+    {
+        if (!File.Exists(filePath))
+            return (ReadLines(Array.Empty<string>(), filePath), BmsParser.Parse(filePath));
+
+        var (lines, encoding, directory, mediaPathIndex) = BmsParser.ReadLinesWithMetadata(filePath);
+        return (ReadLines(lines, filePath), BmsParser.ParseLines(lines, encoding, directory, mediaPathIndex));
+    }
+
+    internal static KeyboardChart ReadLines(string[] lines, string filePath)
+    {
         // 어느 게임 차트인지 먼저 안다. 그 게임이 노트로 읽지 않는 채널을 거르는 데 필요하다.
         var profile = GameProfileCatalog.Default.DetectFromPath(filePath);
 

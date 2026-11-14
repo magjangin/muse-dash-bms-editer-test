@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Text;
+using bms_editer.Services;
+using bms_editer.Services.Downmix;
 using bms_editer.ViewModels;
 using Xunit;
 
@@ -104,5 +107,91 @@ public sealed class LoadPerformanceTests : IDisposable
         Assert.Equal(vm.Chart.Notes.Count, stats.TotalCount);
         Assert.NotEmpty(stats.WavStats);
         Assert.All(stats.WavStats, s => Assert.NotEqual("(등록되지 않은 번호)", s.FileName));
+    }
+
+    [Fact]
+    public void AddWavs_여러_파일을_한번의_알림과_한번의_되돌리기로_추가한다()
+    {
+        var path = WriteBigChart(wavCount: 2, measureCount: 1);
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path), vm.LastErrorMessage);
+
+        var files = new[]
+        {
+            Path.Combine(_directory, "sample_a.ogg"),
+            Path.Combine(_directory, "sample_b.ogg"),
+            Path.Combine(_directory, "sample_c.ogg"),
+        };
+        foreach (var file in files)
+            File.WriteAllBytes(file, Array.Empty<byte>());
+
+        var initialCount = vm.WavList.Count;
+        var notifications = 0;
+        NotifyCollectionChangedAction? lastAction = null;
+        vm.WavList.CollectionChanged += (_, e) =>
+        {
+            notifications++;
+            lastAction = e.Action;
+        };
+
+        var added = vm.AddWavs(files);
+
+        Assert.Equal(3, added);
+        Assert.Equal(1, notifications);
+        Assert.Equal(NotifyCollectionChangedAction.Reset, lastAction);
+        Assert.Equal(initialCount + 3, vm.WavList.Count);
+        Assert.Same(vm.WavList[^1], vm.SelectedWavItem);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(initialCount, vm.WavList.Count);
+    }
+
+    [Fact]
+    public void ReadWithChart_단일_읽기는_개별_Read와_Parse_결과와_일치한다()
+    {
+        var kbPath = Path.Combine(_directory, "keyboard_sample.bms");
+        File.WriteAllText(kbPath, """
+            #PLAYER 1
+            #TITLE Keyboard Test
+            #BPM 140
+            #WAV01 kick.ogg
+            #WAV02 ln_start.ogg
+            #00111:0100
+            #00113:0200
+            #00213:0200
+            """.Replace("\r\n", "\n"), Encoding.UTF8);
+
+        var separateSource = KeyboardChartReader.Read(kbPath);
+        var separateParsed = BmsParser.Parse(kbPath);
+        var (combinedSource, combinedParsed) = KeyboardChartReader.ReadWithChart(kbPath);
+
+        Assert.Equal(separateSource.Title, combinedSource.Title);
+        Assert.Equal(separateSource.Bpm, combinedSource.Bpm);
+        Assert.Equal(separateSource.Notes.Count, combinedSource.Notes.Count);
+        Assert.Equal(separateSource.WavTexts.Count, combinedSource.WavTexts.Count);
+
+        Assert.Equal(separateParsed.Chart.Notes.Count, combinedParsed.Chart.Notes.Count);
+        Assert.Equal(separateParsed.Chart.Header.Title, combinedParsed.Chart.Header.Title);
+        Assert.Equal(separateParsed.Chart.WavTable.Count, combinedParsed.Chart.WavTable.Count);
+    }
+
+    [Fact]
+    public void 헤더_속성_변경은_즉시_Chart_Header에_반영된다()
+    {
+        var vm = new MainWindowViewModel();
+
+        vm.Title = "New Title";
+        vm.Artist = "New Artist";
+        vm.Genre = "Electronic";
+        vm.Level = "9";
+        vm.Player = 2;
+        vm.Rank = 1;
+
+        Assert.Equal("New Title", vm.Chart.Header.Title);
+        Assert.Equal("New Artist", vm.Chart.Header.Artist);
+        Assert.Equal("Electronic", vm.Chart.Header.Genre);
+        Assert.Equal("9", vm.Chart.Header.Level);
+        Assert.Equal(3, vm.Chart.Header.Player);
+        Assert.Equal(1, vm.Chart.Header.Rank);
     }
 }

@@ -83,6 +83,7 @@ public sealed partial class MainWindowViewModel
     {
         _wavSnapshotCache = null;
         _wavTableSnapshotCache = null;
+        _wavTextsCache = null;
     }
 
     // 노트 -> 자리 번호. 선택을 번호로 옮길 때 쓴다.

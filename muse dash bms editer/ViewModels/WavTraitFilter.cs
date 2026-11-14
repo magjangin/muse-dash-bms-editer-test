@@ -82,10 +82,17 @@ public sealed class WavTraitFilter : ObservableObject
 
     // 지금 있는 키음 파일명에서 드롭다운 값을 다시 뽑는다. 새 목록에 없는 값을
     // 고르고 있었다면 풀어 준다(이때도 changed 는 부르지 않는다).
-    public void Rebuild(IEnumerable<string> fileNames)
-    {
-        var traits = fileNames.Select(WavSearch.Traits).ToList();
+    public void Rebuild(IEnumerable<string> fileNames) =>
+        RebuildCore(fileNames.Select(WavSearch.Traits).ToList());
 
+    public void Rebuild(IEnumerable<BmsWavItem> items) =>
+        RebuildCore(items.Select(item => item.Traits).ToList());
+
+    public void Rebuild(IEnumerable<WavTraits> traits) =>
+        RebuildCore(traits as IReadOnlyList<WavTraits> ?? traits.ToList());
+
+    private void RebuildCore(IReadOnlyList<WavTraits> traits)
+    {
         _sceneOptions = [All, .. traits.Where(t => t.Scene.HasValue).Select(t => t.Scene!.Value)
             .Distinct().Order().Select(WavSearch.SceneLabel)];
         _kindOptions = [All, .. traits.Where(t => t.Kind is not null).Select(t => t.Kind!).Distinct()];
@@ -110,12 +117,17 @@ public sealed class WavTraitFilter : ObservableObject
         RaiseFilters();
     }
 
-    public bool Passes(string fileName)
+    public bool Passes(string fileName) =>
+        !IsActive || Passes(WavSearch.Traits(fileName));
+
+    public bool Passes(BmsWavItem item) =>
+        !IsActive || Passes(item.Traits);
+
+    public bool Passes(WavTraits traits)
     {
         if (!IsActive)
             return true;
 
-        var traits = WavSearch.Traits(fileName);
         return (_sceneFilter == All || (traits.Scene is { } scene && WavSearch.SceneLabel(scene) == _sceneFilter)) &&
                (_kindFilter == All || traits.Kind == _kindFilter) &&
                (_positionFilter == All || traits.Position == _positionFilter) &&

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using bms_editer.Models;
 
 namespace bms_editer.Services.Holds;
@@ -46,84 +45,116 @@ internal static class HoldPolicies
     private static void NearestUnconsumedTail(
         HoldRule rule, IReadOnlyList<HoldMember> ordered, List<HoldLink> links, List<HoldDiagnostic> diagnostics)
     {
-        var tails = ordered.Where(m => m.Role == HoldRole.Tail).ToList();
-        var consumed = new HashSet<BmsNote>();
-
-        foreach (var head in ordered.Where(m => m.Role == HoldRole.Head))
+        var tails = new List<HoldMember>();
+        foreach (var member in ordered)
         {
-            HoldMember? found = null;
-            foreach (var candidate in tails)
-            {
-                // 같은 자리의 끝은 짝이 아니다. 게임 코드가 "시작보다 뒤"만 본다.
-                if (consumed.Contains(candidate.Note) || candidate.Time <= head.Time + TimeEpsilon)
-                    continue;
+            if (member.Role == HoldRole.Tail)
+                tails.Add(member);
+        }
 
-                found = candidate;
-                break;
+        var consumed = new bool[tails.Count];
+        var nextCandidate = 0;
+
+        foreach (var member in ordered)
+        {
+            if (member.Role != HoldRole.Head)
+                continue;
+
+            // ordered 가 시간순이므로 앞선 시작 노트가 이미 지나친 끝(이미 소비되었거나
+            // 시작과 같거나 앞선 시각)은 뒤쪽 시작 노트에서도 다시 볼 필요가 없다.
+            while (nextCandidate < tails.Count
+                && (consumed[nextCandidate] || tails[nextCandidate].Time <= member.Time + TimeEpsilon))
+            {
+                nextCandidate++;
             }
 
-            if (found is not { } tail)
+            if (nextCandidate >= tails.Count)
             {
-                diagnostics.Add(OrphanHead(rule, head.Note));
+                diagnostics.Add(OrphanHead(rule, member.Note));
                 continue;
             }
 
-            consumed.Add(tail.Note);
-            links.Add(new HoldLink(head.Note, tail.Note, rule.Kind));
+            consumed[nextCandidate] = true;
+            links.Add(new HoldLink(member.Note, tails[nextCandidate].Note, rule.Kind));
+            nextCandidate++;
         }
 
-        foreach (var tail in tails)
+        for (var i = 0; i < tails.Count; i++)
         {
-            if (!consumed.Contains(tail.Note))
-                diagnostics.Add(OrphanTail(rule, tail.Note));
+            if (!consumed[i])
+                diagnostics.Add(OrphanTail(rule, tails[i].Note));
         }
     }
 
     private static void NearestTailShared(
         HoldRule rule, IReadOnlyList<HoldMember> ordered, List<HoldLink> links, List<HoldDiagnostic> diagnostics)
     {
-        var tails = ordered.Where(m => m.Role == HoldRole.Tail).ToList();
-        var usage = new Dictionary<BmsNote, int>();
-
-        foreach (var head in ordered.Where(m => m.Role == HoldRole.Head))
+        var tails = new List<HoldMember>();
+        foreach (var member in ordered)
         {
-            HoldMember? found = null;
-            foreach (var candidate in tails)
-            {
-                if (candidate.Time <= head.Time + TimeEpsilon)
-                    continue;
+            if (member.Role == HoldRole.Tail)
+                tails.Add(member);
+        }
 
-                found = candidate;
-                break;
-            }
+        var usage = new int[tails.Count];
 
-            if (found is not { } tail)
+        foreach (var head in ordered)
+        {
+            if (head.Role != HoldRole.Head)
+                continue;
+
+            var tailIndex = FindFirstTailAfter(tails, head.Time + TimeEpsilon);
+            if (tailIndex < 0)
             {
                 diagnostics.Add(OrphanHead(rule, head.Note));
                 continue;
             }
 
-            usage[tail.Note] = usage.TryGetValue(tail.Note, out var count) ? count + 1 : 1;
-            links.Add(new HoldLink(head.Note, tail.Note, rule.Kind));
+            usage[tailIndex]++;
+            links.Add(new HoldLink(head.Note, tails[tailIndex].Note, rule.Kind));
         }
 
-        foreach (var tail in tails)
+        for (var i = 0; i < tails.Count; i++)
         {
-            if (!usage.TryGetValue(tail.Note, out var count))
+            var count = usage[i];
+            if (count == 0)
             {
-                diagnostics.Add(OrphanTail(rule, tail.Note));
+                diagnostics.Add(OrphanTail(rule, tails[i].Note));
             }
             else if (count > 1)
             {
                 diagnostics.Add(new HoldDiagnostic(
                     HoldDiagnosticKind.SharedTail,
                     HoldDiagnosticSeverity.Warning,
-                    tail.Note,
+                    tails[i].Note,
                     rule.Kind,
                     $"끝 노트 하나를 {KindName(rule.Kind)} 시작 {count}개가 같이 씁니다. " +
                     "게임은 모두 이 끝에 붙이지만, 의도한 배치인지 확인하십시오."));
             }
         }
+    }
+
+    private static int FindFirstTailAfter(IReadOnlyList<HoldMember> tails, double minTimeExclusive)
+    {
+        var low = 0;
+        var high = tails.Count - 1;
+        var found = -1;
+
+        while (low <= high)
+        {
+            var mid = low + (high - low) / 2;
+            if (tails[mid].Time > minTimeExclusive)
+            {
+                found = mid;
+                high = mid - 1;
+            }
+            else
+            {
+                low = mid + 1;
+            }
+        }
+
+        return found;
     }
 
     private static void FifoQueue(

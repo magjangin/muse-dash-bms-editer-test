@@ -84,10 +84,9 @@ public sealed partial class MainWindowViewModel
         try
         {
             foreach (var wav in created)
-            {
                 Chart.WavTable[wav.Key] = wav.FilePath;
-                WavList.Add(wav);
-            }
+
+            WavList.AddRange(created);
         }
         finally
         {
@@ -105,12 +104,29 @@ public sealed partial class MainWindowViewModel
     private IReadOnlyList<BmsNote> _selectedNotesCache = Array.Empty<BmsNote>();
     public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotesCache;
 
-    // 시각 순으로 정렬한 노트. 재생 중 "지금 울릴 노트"를 이진 탐색으로 찾는 데 쓴다.
-    // 노트가 바뀔 때만 다시 만든다. (NotifyNotesChanged 참고)
+    // 시각 순으로 정렬한 노트와 각 노트의 재생 시각(초).
+    // 재생 중 "지금 울릴 노트"를 이진 탐색할 때 매 프레임 SecondsAt 를 다시 풀지 않도록 캐시한다.
+    // 노트나 타임라인(BPM 변화)이 바뀔 때 함께 비운다.
     private BmsNote[]? _sortedNotesCache;
+    private double[]? _sortedNoteSecondsCache;
 
     private BmsNote[] GetSortedNotes() =>
         _sortedNotesCache ??= Chart.Notes.OrderBy(n => n.Measure + n.Position).ToArray();
+
+    private (BmsNote[] Notes, double[] Seconds) GetSortedNotesWithSeconds()
+    {
+        var notes = GetSortedNotes();
+        if (_sortedNoteSecondsCache is { } cached && cached.Length == notes.Length)
+            return (notes, cached);
+
+        var timeline = Timeline;
+        var seconds = new double[notes.Length];
+        for (var i = 0; i < notes.Length; i++)
+            seconds[i] = timeline.SecondsAt(notes[i].Measure + notes[i].Position);
+
+        _sortedNoteSecondsCache = seconds;
+        return (notes, seconds);
+    }
 
     // 노트가 바뀌었다고 알린다. 화면 갱신과 정렬 캐시 무효화가 늘 짝이어야 해서 한곳에 모은다.
     //
@@ -118,6 +134,7 @@ public sealed partial class MainWindowViewModel
     private void NotifyNotesChanged(string label = "편집")
     {
         _sortedNotesCache = null;
+        _sortedNoteSecondsCache = null;
         _notesCache = Chart.Notes.ToArray();
         _noteIndexCache = null;
         MarkDirty();
@@ -436,49 +453,70 @@ public sealed partial class MainWindowViewModel
     // 예전에는 항상 2자리만 만들었다. 기존 키가 전부 3자리인 차트에서는 2자리 "01" 이
     // "비어 있는" 키로 보이는데, 저장할 때 BmsWriter 가 폭을 3으로 맞추면서 "001" 이 되어
     // 기존 001번 키음을 조용히 덮어썼다. 001을 쓰던 노트가 전부 다른 소리로 바뀌었다.
-    private string GetNextWavKey()
+    private string GetNextWavKey(ref int startValue, int width, int limit)
     {
-        var width = WavKeyWidth;
-        var limit = WavKey.MaxValue(width);
-
         // 00 / 000 은 "빈 자리"를 뜻하므로 1부터 시작한다.
-        for (var value = 1; value <= limit; value++)
+        for (; startValue <= limit; startValue++)
         {
-            var key = WavKey.Format(value, width);
+            var key = WavKey.Format(startValue, width);
             if (!Chart.WavTable.ContainsKey(key))
+            {
+                startValue++;
                 return key;
+            }
         }
 
         throw new InvalidOperationException("WAV 키 한도를 초과했습니다.");
     }
 
-    // 실패하면 false. 예전에는 예외를 삼켜서 [키음 추가]가 조용히 아무 일도 안 했다.
-    public bool AddWav(string filePath)
+    // 여러 키음 파일을 한 묶음으로 넣는다. 1개씩 Add 할 때마다 히스토리 스냅샷·홀드 재계산·
+    // 노트 그림 백그라운드 빌드·팔레트 필터 재집계가 반복되는 병목을 피하기 위함이다.
+    // 중단되면 추가된 개수만 돌려주고 LastErrorMessage 에 사유를 남긴다.
+    public int AddWavs(IEnumerable<string> filePaths)
     {
-        if (!File.Exists(filePath))
-        {
-            LastErrorMessage = "파일을 찾을 수 없습니다.";
-            return false;
-        }
+        LastErrorMessage = null;
+        var width = WavKeyWidth;
+        var limit = WavKey.MaxValue(width);
+        var nextKeyValue = 1;
+        var added = new List<BmsWavItem>();
+        List<string>? addedPaths = null;
 
         try
         {
-            var key = GetNextWavKey();
-            Chart.WavTable[key] = filePath;
-            _keySoundPlayer.PreloadAsync(new[] { filePath });
-            var item = new BmsWavItem { Key = key, FilePath = filePath };
-            WavList.Add(item);
-            SelectedWavItem = item;
-            LastErrorMessage = null;
-            return true;
+            foreach (var filePath in filePaths)
+            {
+                if (!File.Exists(filePath))
+                {
+                    LastErrorMessage = "파일을 찾을 수 없습니다.";
+                    break;
+                }
+
+                var key = GetNextWavKey(ref nextKeyValue, width, limit);
+                Chart.WavTable[key] = filePath;
+                added.Add(new BmsWavItem { Key = key, FilePath = filePath });
+                addedPaths ??= new List<string>();
+                addedPaths.Add(filePath);
+            }
         }
         catch (Exception ex)
         {
             LastErrorMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"WAV 추가 실패: {ex.Message}");
-            return false;
         }
+
+        if (added.Count > 0)
+        {
+            _keySoundPlayer.PreloadAsync(addedPaths!);
+            WavList.AddRange(added);
+            SelectedWavItem = added[^1];
+            TrackSelectionForHistory();
+        }
+
+        return added.Count;
     }
+
+    // 실패하면 false. 예전에는 예외를 삼켜서 [키음 추가]가 조용히 아무 일도 안 했다.
+    public bool AddWav(string filePath) => AddWavs(new[] { filePath }) > 0;
 
     // 이 번호를 쓰는 노트 개수.
     public int CountNotesUsingWavKey(string key) =>

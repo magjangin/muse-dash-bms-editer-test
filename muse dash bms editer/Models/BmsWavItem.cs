@@ -1,13 +1,34 @@
+using System;
 using System.IO;
 
 namespace bms_editer.Models;
 
 public sealed class BmsWavItem
 {
+    private string _filePath = string.Empty;
+    private string? _fileName;
+    private string? _shortName;
+    private WavTraits? _traits;
+    private bool? _isFileMissing;
+
     public string Key { get; set; } = string.Empty;
 
     // 재생에 쓰는 실제 경로. 적힌 자리에 파일이 없으면 하위 폴더에서 찾아 붙인 결과일 수 있다.
-    public string FilePath { get; set; } = string.Empty;
+    public string FilePath
+    {
+        get => _filePath;
+        set
+        {
+            if (string.Equals(_filePath, value, StringComparison.Ordinal))
+                return;
+
+            _filePath = value;
+            _fileName = null;
+            _shortName = null;
+            _traits = null;
+            _isFileMissing = null;
+        }
+    }
 
     // 파일에 적혀 있던 경로 문자열 그대로. 저장할 때 되돌려 쓴다.
     // 새로 추가한 키음은 비어 있고, 그때는 FilePath 로 상대경로를 만든다.
@@ -18,13 +39,13 @@ public sealed class BmsWavItem
     // 차트가 그쪽을 가리키도록 조용히 바뀌어 버린다.
     public bool IsPathGuessed { get; set; }
 
-    public string FileName => Path.GetFileName(FilePath);
+    public string FileName => _fileName ??= Path.GetFileName(FilePath);
     // 팔레트 표시용. 앞의 코드와 뒤의 _dt, 확장자를 뗀 이름(씬이 없으면 씬을 붙인다).
-    public string ShortName => WavSearch.DisplayName(FileName);
+    public string ShortName => _shortName ??= WavSearch.DisplayName(FileName);
+    public WavTraits Traits => _traits ??= WavSearch.Traits(FileName);
 
     // 파일이 실제로 있는지. 목록에 보일 때 한 번만 확인한다.
     // 씬 WAV 폴더를 빠뜨린 차트는 소리만 안 나서 이유가 안 보이고, 게임에 넣고 나서야 알게 된다.
-    private bool? _isFileMissing;
     public bool IsFileMissing => _isFileMissing ??= !File.Exists(FilePath);
 
     public string DisplayText => $"{(IsFileMissing ? "⚠️ " : "")}#{Key}: {FileName}";
