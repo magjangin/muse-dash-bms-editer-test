@@ -57,7 +57,7 @@
 | **[WavKey.cs](../../muse%20dash%20bms%20editer/Services/WavKey.cs)** | base-36 키음 번호(`01`~`ZZ`, `001`~`ZZZ`)의 파싱 · 서식 · 자릿수 규칙을 한 곳에 둡니다. |
 | **[FileAssociation.cs](../../muse%20dash%20bms%20editer/Services/FileAssociation.cs)** | `.bms` · `.bme` · `.bml` 확장자를 현재 사용자 레지스트리(`HKCU\Software\Classes`)에 연결하고, 명령줄 인자로 받은 차트 경로를 엽니다. |
 | **[ShellNotify.cs](../../muse%20dash%20bms%20editer/Services/ShellNotify.cs)** | 파일 저장 및 확장자 연결 변경 시 Windows 탐색기에 `SHChangeNotify` 로 알립니다. |
-| **[NoteIcons.cs](../../muse%20dash%20bms%20editer/Services/NoteIcons.cs)** | `#WAV` 파일명 앞 6자리 UID 에 대응하는 노트 아이콘(`note_icons/<UID>.png`)을 읽고, 그림자 제거·여백 자르기를 거쳐 크기별로 캐시합니다. 속도 2·3(`yy`)도 속도 1 아이콘·방향·배율로 매핑합니다. |
+| **[NoteIcons.cs](../../muse%20dash%20bms%20editer/Services/NoteIcons.cs)** | `#WAV` 파일명 앞 6자리 UID 에 대응하는 노트 아이콘(`note_icons/<UID>.png`)을 읽고, 그림자 제거·여백 자르기를 거쳐 크기별로 캐시합니다. 속도 2·3(`yy`)도 속도 1 아이콘·방향·배율로 매핑하며, 속도별 그림이 없으면 속도 1 비트맵을 **같이 씁니다**(해제할 때 중복을 걸러 한 번만 `Dispose`). 씬 전환(`0004yy`)에는 방향을 붙이지 않습니다. |
 | **[NoteIconImporter.cs](../../muse%20dash%20bms%20editer/Services/NoteIconImporter.cs)** | Spine Support Tool 렌더 폴더에서 게임 노트·보스·하트·음표·씬 전환 PNG 를 찾아 `%LOCALAPPDATA%\muse dash bms editer\note_icons` 에 UID 이름으로 복사합니다. |
 | **[NoteSpeed.cs](../../muse%20dash%20bms%20editer/Services/NoteSpeed.cs)** | 뮤즈 대시 노트의 속도(1~3) 변환 규칙과 `SceneNoteSpeedResolver` 를 담습니다. |
 | **[SceneSwap.cs](../../muse%20dash%20bms%20editer/Services/SceneSwap.cs)** | 구간 씬 바꾸기(`SceneKeyResolver`)와 시작/복귀 씬 전환 노트(`0004xx`) 계산을 맡습니다. |
@@ -75,7 +75,10 @@
 | :--- | :--- |
 | **[OggDecoder.cs](../../muse%20dash%20bms%20editer/Services/OggDecoder.cs)** | 배경 음악(OGG)을 NVorbis 로 한 번만 PCM16 으로 풉니다. 재생과 파형이 같은 결과를 나눠 씁니다. 디코더가 예상보다 많이/적게 내보내도 배열을 맞추고 길이를 실제 표본 수로 다시 잡습니다. |
 | **[OggAudioPlayer.cs](../../muse%20dash%20bms%20editer/Services/OggAudioPlayer.cs)** | `winmm.dll` 의 `waveOut` 을 `[LibraryImport]` 로 직접 불러 재생합니다. 재생 배속은 장치 샘플레이트를 바꿔 구현하므로 음정이 같이 내려갑니다. 재생 위치는 벽시계가 아니라 장치에 묻습니다(`GetPlayedSeconds`). |
-| **[OggPeakLoader.cs](../../muse%20dash%20bms%20editer/Services/OggPeakLoader.cs)** | 파형 막대(초당 80칸, 32~20000칸)와 온셋 마커를 만듭니다. "버킷 i = i × 길이 ÷ 개수 시점"이라는 규칙(`GetBucketRatio` / `GetBucketRange`)을 여기 한 곳에만 둡니다. |
+| **[OggPeakLoader.cs](../../muse%20dash%20bms%20editer/Services/OggPeakLoader.cs)** | 파형 막대(초당 80칸, 32~20000칸)와 온셋을 만듭니다. 온셋은 화면에 그리지 않고 ⚡ 오프셋 자동 맞춤(`TryDetectAudioOffsetMs`)에만 씁니다. "버킷 i = i × 길이 ÷ 개수 시점"이라는 규칙(`GetBucketRatio` / `GetBucketRange`)을 여기 한 곳에만 둡니다. |
+| **[IbmscBpmDetector.cs](../../muse%20dash%20bms%20editer/Services/IbmscBpmDetector.cs)** | iBMSC MD 의 BPM 자동 측정을 숫자가 같게 옮긴 것입니다. 원본과 다른 점은 범위(60~199.99)와 0.01 간격뿐이고, cos 만 쓰는 점수 식의 한계(위상이 어긋나면 엉뚱한 BPM, 믿을 수 없는 소수점)도 그대로 둡니다. |
+| **[PreciseBpmDetector.cs](../../muse%20dash%20bms%20editer/Services/PreciseBpmDetector.cs)** | 소수점까지 재는 BPM 측정입니다. 다섯 대역 어택 곡선(`BuildOnsetCurve`, 5ms 칸)에 복소 지수 내적 크기 + 2·4배 박 가중을 씁니다. 어택 곡선은 `GridFitAdvisor` 와 같이 씁니다. |
+| **[GridFitAdvisor.cs](../../muse%20dash%20bms%20editer/Services/GridFitAdvisor.cs)** | "파형으로 맞춰도 되나 / 소리로 들어야 하나"를 고릅니다. 8마디 구간마다 어택이 16분 격자 한쪽으로 몰렸는지 보고, 25ms 이상 같은 쪽으로 밀린 구간이 3개 이상 이어지면 `Listen`. 숫자는 일부러 보여 주지 않습니다. |
 | **[KeySoundPlayer.cs](../../muse%20dash%20bms%20editer/Services/KeySoundPlayer.cs)** | 키음 믹서입니다. 미리 풀어 둔 PCM 을 자기 `waveOut` 스트림(44.1kHz 스테레오, 40ms 버퍼 3개)에 더해 내보내므로 화음과 긴 키음이 끊기지 않습니다. 디코딩에 실패한 파일만 Win32 `PlaySound` 로 물러납니다. |
 | **[WavDecoder.cs](../../muse%20dash%20bms%20editer/Services/WavDecoder.cs)** | 키음 WAV(8/16/24/32bit PCM, IEEE Float, `WAVE_FORMAT_EXTENSIBLE`)와 OGG 를 44.1kHz 16bit 스테레오로 풀고 선형 보간으로 리샘플링합니다. |
 
@@ -142,8 +145,8 @@
 | :--- | :--- |
 | **[MainWindow.axaml / .cs](../../muse%20dash%20bms%20editer/MainWindow.axaml)** | 최상위 창입니다. 메뉴 · 도구 모음 · 격자와 파형 · 오른쪽 패널(홀드 검사기, 영상, 헤더, 격자 설정, 음원 오프셋, 키음 목록) · 상태줄로 이뤄집니다. 창 전체 단축키(Ctrl+N/O/S/Z/Y, Space, Delete, 방향키, Esc), 저장 안 한 채 닫을 때의 3지선다, 보조 창을 종류당 하나만 띄우기, 가운데 버튼 스크럽, 재생 커서 따라가기를 처리합니다. |
 | **[TimelineControlBase.cs](../../muse%20dash%20bms%20editer/Views/Controls/TimelineControlBase.cs)** | 격자와 파형이 같이 쓰는 바탕입니다. 줌 · BPM · 시간축 속성, 타임라인 길이 식(`ComputeTimelineLength` — 메인 창도 이것을 부릅니다), 격자선 열거(`EnumerateGridLines`), 음원 오프셋을 반영한 비율 변환(`AudioRatio`), 재생 커서와 BPM 변경 번쩍임을 그립니다. → [grid_specification.md](../specifications/grid_specification.md) |
-| **[NoteGridControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/NoteGridControl.cs)** | 격자판과 노트를 그립니다. 홀드 · 샌드백 몸통(노랑 · 분홍)을 노트보다 먼저 그리고, 짝이 어긋난 노트에 주황 점선을 두릅니다. 좌클릭 배치(격자 스냅 on/off), 우클릭 삭제, 드래그 선택(Ctrl/Shift 로 더하기)을 받습니다. 화면 밖을 건너뛰는 처리 없이 타임라인 전체를 그립니다. |
-| **[OggWaveformControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/OggWaveformControl.cs)** | 음원 파형 막대와 온셋 마커, 마디 번호 · 초 라벨(`#003 (5.7600s)`)을 그립니다. 좌클릭 · 드래그로 재생 위치를 옮깁니다. |
+| **[NoteGridControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/NoteGridControl.cs)** | 격자판과 노트를 그립니다. 홀드 · 샌드백 몸통(노랑 · 분홍)을 노트보다 먼저 그리고, 짝이 어긋난 노트에 주황 점선을 두릅니다. 좌클릭 배치(격자 스냅 on/off), 우클릭 삭제, 드래그 선택(Ctrl/Shift 로 더하기, 사각형 시간 구간만 이진 탐색)을 받습니다. 격자·노트는 **보이는 구간만** 그리고(배경 사각형은 클릭을 받아야 해서 자르지 않음), 렌더·클릭마다 `CaptureAxis()`/`CaptureNoteStyle()` 로 속성을 한 번만 읽습니다. 노트 그림 구석에 속도(1~3 초록·파랑·빨강) 동그라미와 등장 방향 삼각형을 얹습니다. |
+| **[OggWaveformControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/OggWaveformControl.cs)** | 음원 파형 막대와 마디 번호 · 초 라벨(`#003 (5.7600s)`)을 그립니다. 온셋 세로선은 판단을 흐려 지웠습니다(다시 넣지 않음). 좌클릭 · 드래그로 재생 위치를 옮깁니다. |
 | **[VideoPreviewControl.cs](../../muse%20dash%20bms%20editer/Views/Controls/VideoPreviewControl.cs)** | WebView2 창을 격자 옆에 붙여 영상을 띄우고, 가상 호스트로 로컬 파일을 열며, 재생 위치를 0.2초마다 맞춥니다. → [video_ogg_principles.md](video_ogg_principles.md) |
 | **[ConfirmWindow.axaml / .cs](../../muse%20dash%20bms%20editer/Views/ConfirmWindow.axaml)** | 확인/취소 · 알림 전용 · 저장/저장 안 함/취소 3지선다를 모두 맡는 대화상자입니다. 창을 그냥 닫으면 언제나 "취소"입니다. |
 | **[ControlPanelWindow.axaml / .cs](../../muse%20dash%20bms%20editer/Views/ControlPanelWindow.axaml)** | 🎛️ 컨트롤 패널 창(모드리스)입니다. 목록 항목에는 명령을 걸지 않고, 누르는 것은 전부 목록 밖 버튼입니다. |
