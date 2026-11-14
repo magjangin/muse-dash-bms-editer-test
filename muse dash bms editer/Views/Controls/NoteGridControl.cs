@@ -348,12 +348,13 @@ public sealed class NoteGridControl : TimelineControlBase
 
         if (icon.Direction != NoteDirection.None || icon.Speed is not null)
         {
-            // 그림의 오른쪽 위 구석. 레인 밖으로 나가지 않게 안으로 당긴다.
+            // 그림의 오른쪽 위 구석에서 BadgeShiftRight 만큼 더 오른쪽. 레인 밖으로 나가지 않게 안으로 당긴다.
+            // 동그라미는 삼각형보다 넉넉히 커서 삼각형 둘레로 속도 색이 보인다.
             var half = Math.Min(5.0, (laneThickness - 2) / 4);
-            var radius = half + 1.5;
+            var radius = half + SpeedBadgeExtraRadius;
             var badge = new Point(
-                Math.Min(center.X + (width / 2) - radius, center.X + (laneThickness / 2) - radius - 1),
-                center.Y - (height / 2) + radius);
+                Math.Min(center.X + (width / 2) - half + BadgeShiftRight, center.X + (laneThickness / 2) - radius - 1),
+                center.Y - (height / 2) + half + 1.5);
 
             // 속도 동그라미를 먼저 깔고 방향 삼각형을 그 위에 얹는다.
             if (icon.Speed is int speed && speed >= 1 && speed <= SpeedBadgeBrushes.Length)
@@ -446,7 +447,11 @@ public sealed class NoteGridControl : TimelineControlBase
         return text;
     }
 
-    private static readonly IBrush DirectionBadgeBrush = new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
+    // 속도 동그라미·방향 삼각형 자리와 크기. 그림 오른쪽 끝에서 이만큼 더 밀고, 동그라미는 삼각형 반폭 + 이만큼.
+    private const double BadgeShiftRight = 3;
+    private const double SpeedBadgeExtraRadius = 3.5;
+
+    private static readonly IBrush DirectionBadgeBrush =new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
     private static readonly IPen BadgeOutlinePen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
 
     // 속도 1·2·3 (초록·파랑·빨강). 번호 - 1 이 자리다.
