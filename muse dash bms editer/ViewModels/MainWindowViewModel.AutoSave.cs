@@ -215,6 +215,7 @@ public sealed partial class MainWindowViewModel
         IsHorizontalView = settings.IsHorizontalView;
         IsCircleNoteShape = settings.IsCircleNoteShape;
         HideUnusedLanes = settings.HideUnusedLanes;
+        ShowNoteSpeed = settings.ShowNoteSpeed;
         SnapToGrid = settings.SnapToGrid;
         FollowPlaybackCursor = settings.FollowPlaybackCursor;
         PlaybackSpeed = Sane(settings.PlaybackSpeed, 0.1, 1.0, 1.0);
@@ -231,6 +232,7 @@ public sealed partial class MainWindowViewModel
         settings.IsHorizontalView = IsHorizontalView;
         settings.IsCircleNoteShape = IsCircleNoteShape;
         settings.HideUnusedLanes = HideUnusedLanes;
+        settings.ShowNoteSpeed = ShowNoteSpeed;
         settings.SnapToGrid = SnapToGrid;
         settings.FollowPlaybackCursor = FollowPlaybackCursor;
         settings.PlaybackSpeed = PlaybackSpeed;

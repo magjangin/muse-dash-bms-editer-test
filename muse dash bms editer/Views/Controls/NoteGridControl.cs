@@ -31,6 +31,9 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<bool> HideUnusedLanesProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(HideUnusedLanes));
 
+    public static readonly StyledProperty<bool> ShowNoteSpeedProperty =
+        AvaloniaProperty.Register<NoteGridControl, bool>(nameof(ShowNoteSpeed));
+
     public bool HideUnusedLanes
     {
         get => GetValue(HideUnusedLanesProperty);
@@ -154,6 +157,12 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(IsCircleNoteShapeProperty, value);
     }
 
+    public bool ShowNoteSpeed
+    {
+        get => GetValue(ShowNoteSpeedProperty);
+        set => SetValue(ShowNoteSpeedProperty, value);
+    }
+
     public bool IsEditMode
     {
         get => GetValue(IsEditModeProperty);
@@ -247,7 +256,7 @@ public sealed class NoteGridControl : TimelineControlBase
     static NoteGridControl()
     {
         AffectsRender<NoteGridControl>(HideUnusedLanesProperty, LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty, NoteIconsProperty,
-            SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty);
+            ShowNoteSpeedProperty, SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty);
         AffectsMeasure<NoteGridControl>(HideUnusedLanesProperty, LanesProperty, NotesProperty, LaneWidthProperty);
     }
 
@@ -335,7 +344,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
     // 노트 그림을 그린다. 그림은 가로·세로 중 긴 쪽을 지름에 맞추고 비율은 유지한다.
     // diameter 는 배율을 곱하기 전 크기이고, 레인 폭을 넘지 않게 자른다.
-    private void DrawNoteIcon(DrawingContext context, NoteIcon icon, Point center, double diameter, double laneThickness)
+    private void DrawNoteIcon(DrawingContext context, NoteIcon icon, Point center, double diameter, double laneThickness, bool showSpeed)
     {
         var size = Math.Min(diameter * icon.Scale, laneThickness - 2);
         var image = icon.Image;
@@ -349,15 +358,18 @@ public sealed class NoteGridControl : TimelineControlBase
         // 방향 삼각형만 얹는다. 속도 동그라미를 같이 깔았더니 삼각형 방향이 흐려져 되돌렸다(AGENTS.md Dead Ends).
         if (icon.Direction != NoteDirection.None)
         {
-            // 그림의 오른쪽 위 구석. 레인 밖으로 나가지 않게 안으로 당긴다.
-            var half = Math.Min(5.0, (laneThickness - 2) / 4);
+            // 그림의 오른쪽 위 구석(여백이 있으면 그림 바깥쪽, 날개를 덜 가리도록 위쪽으로 배치).
+            var half = Math.Min(4.5, (laneThickness - 2) / 4);
             var badge = new Point(
-                Math.Min(center.X + (width / 2) - half, center.X + (laneThickness / 2) - half - 1),
-                center.Y - (height / 2) + half);
+                Math.Min(center.X + (width / 2) + 1, center.X + (laneThickness / 2) - half - 1),
+                center.Y - (height / 2) + (half * 0.4));
 
             using (context.PushTransform(Matrix.CreateTranslation(badge.X, badge.Y)))
                 context.DrawGeometry(DirectionBadgeBrush, DirectionBadgePen, GetDirectionBadge(icon.Direction, half));
         }
+
+        if (showSpeed && icon.Speed is { } speed)
+            DrawSpeedBadge(context, speed, center, width, height, laneThickness);
 
         if (icon.Marker != BossMarker.None)
             DrawBossMarker(context, icon.Marker, center, width, height);
@@ -441,6 +453,40 @@ public sealed class NoteGridControl : TimelineControlBase
 
     private static readonly IBrush DirectionBadgeBrush = new ImmutableSolidColorBrush(Color.FromRgb(255, 230, 60));
     private static readonly IPen DirectionBadgePen = new ImmutablePen(Brushes.Black.ToImmutable(), 1);
+    private static readonly IBrush Speed1Brush = new ImmutableSolidColorBrush(Color.FromRgb(60, 170, 95));
+    private static readonly IBrush Speed2Brush = new ImmutableSolidColorBrush(Color.FromRgb(55, 135, 225));
+    private static readonly IBrush Speed3Brush = new ImmutableSolidColorBrush(Color.FromRgb(225, 85, 65));
+    private readonly FormattedText?[] _speedBadgeTextCache = new FormattedText?[4];
+
+    // 오른쪽 위 구석(방향 삼각형/보스 이름표)을 피해서 그림 왼쪽 위 구석에 속도 숫자(1~3) 배지를 붙인다.
+    private void DrawSpeedBadge(DrawingContext context, int speed, Point center, double width, double height, double laneThickness)
+    {
+        var clamped = Math.Clamp(speed, 1, 3);
+        var text = _speedBadgeTextCache[clamped] ??= new FormattedText(
+            clamped.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface(LaneHeaderTypeface.FontFamily, FontStyle.Normal, FontWeight.Bold),
+            10.0,
+            Brushes.White);
+
+        var brush = clamped switch
+        {
+            1 => Speed1Brush,
+            2 => Speed2Brush,
+            _ => Speed3Brush,
+        };
+
+        const double padX = 3.0;
+        var tagWidth = text.Width + (padX * 2);
+        var tagHeight = text.Height + 1;
+        var left = Math.Max(center.X - (width / 2), center.X - (laneThickness / 2) + 1);
+        var top = center.Y - (height / 2);
+        var rect = new Rect(left, top, tagWidth, tagHeight);
+
+        context.DrawRectangle(brush, BossMarkerPen, rect, 3, 3);
+        context.DrawText(text, new Point(left + padX, top + 0.5));
+    }
 
     public override void Render(DrawingContext context)
     {
@@ -624,11 +670,11 @@ public sealed class NoteGridControl : TimelineControlBase
     private NoteStyle CaptureNoteStyle(double laneThickness)
     {
         var circle = IsCircleNoteShape;
-        return new NoteStyle(IsHorizontalView, circle, circle ? NoteIcons : null, laneThickness);
+        return new NoteStyle(IsHorizontalView, circle, circle ? NoteIcons : null, laneThickness, ShowNoteSpeed);
     }
 
     private readonly record struct NoteStyle(
-        bool IsHorizontal, bool IsCircle, IReadOnlyDictionary<string, NoteIcon>? Icons, double LaneThickness)
+        bool IsHorizontal, bool IsCircle, IReadOnlyDictionary<string, NoteIcon>? Icons, double LaneThickness, bool ShowNoteSpeed)
     {
         // 그림은 동그라미 모양일 때만 쓴다. 막대 모양에서는 그림이 있어도 단색이다.
         public NoteIcon? IconOf(BmsNote note) =>
@@ -683,7 +729,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
             if (icon is not null)
             {
-                DrawNoteIcon(context, icon, center, style.IconDiameter, laneThickness);
+                DrawNoteIcon(context, icon, center, style.IconDiameter, laneThickness, style.ShowNoteSpeed);
                 return;
             }
 
