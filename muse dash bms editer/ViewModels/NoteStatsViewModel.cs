@@ -25,8 +25,20 @@ public sealed record LaneNoteStat(string LaneId, string Header, int Count)
 
 public sealed record WavNoteStat(string Key, string FileName, int Count)
 {
+    private string? _shortName;
+    private WavTraits? _traits;
+
     // 앞의 코드·_dt·확장자를 뗀 이름(씬이 없으면 씬을 붙인다). 전체 이름은 FileName.
-    public string ShortName => WavSearch.DisplayName(FileName);
+    public string ShortName => _shortName ??= WavSearch.DisplayName(FileName);
+    public WavTraits Traits => _traits ??= WavSearch.Traits(FileName);
+
+    public bool Equals(WavNoteStat? other) =>
+        other is not null
+        && string.Equals(Key, other.Key, StringComparison.Ordinal)
+        && string.Equals(FileName, other.FileName, StringComparison.Ordinal)
+        && Count == other.Count;
+
+    public override int GetHashCode() => HashCode.Combine(Key, FileName, Count);
 }
 
 // 노트 통계 창(📊)의 상태 모델. **집계해서 보여주기만 한다.**

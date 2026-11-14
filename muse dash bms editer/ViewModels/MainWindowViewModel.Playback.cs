@@ -74,7 +74,7 @@ public sealed partial class MainWindowViewModel
             return false;
 
         var startSeconds = Math.Clamp(seconds, 0, OggDurationSeconds);
-        _playbackNotes = GetSortedNotes();
+        _ = GetSortedNotesWithSeconds();
 
         try
         {
@@ -130,23 +130,22 @@ public sealed partial class MainWindowViewModel
 
     private void PlayNotesInTimeRange(double start, double end)
     {
-        if (!IsKeySoundEnabled || Bpm <= 0 || _playbackNotes.Length == 0) return;
+        if (!IsKeySoundEnabled || Bpm <= 0)
+            return;
 
-        // 시각 계산은 Timeline 이 맡는다. 예전에는 여기서 240/BPM 을 직접 써서,
-        // BPM 이 바뀌거나 4/4가 아닌 마디가 있는 차트는 키음이 엉뚱한 때에 울렸다.
-        var timeline = Timeline;
+        var (notes, noteSeconds) = GetSortedNotesWithSeconds();
+        if (notes.Length == 0)
+            return;
 
-        // 시작 지점 이상인 첫 노트를 이진 탐색으로 찾는다.
+        // 시작 지점 이상인 첫 노트를 미리 계산해 둔 시각 배열에서 이진 탐색으로 찾는다.
         var low = 0;
-        var high = _playbackNotes.Length - 1;
-        var startIndex = _playbackNotes.Length;
+        var high = noteSeconds.Length - 1;
+        var startIndex = noteSeconds.Length;
 
         while (low <= high)
         {
             var mid = low + (high - low) / 2;
-            var noteSec = timeline.SecondsAt(_playbackNotes[mid].Measure + _playbackNotes[mid].Position);
-
-            if (noteSec >= start)
+            if (noteSeconds[mid] >= start)
             {
                 startIndex = mid;
                 high = mid - 1;
@@ -157,13 +156,12 @@ public sealed partial class MainWindowViewModel
             }
         }
 
-        for (var i = startIndex; i < _playbackNotes.Length; i++)
+        for (var i = startIndex; i < notes.Length; i++)
         {
-            var note = _playbackNotes[i];
-            if (timeline.SecondsAt(note.Measure + note.Position) >= end)
+            if (noteSeconds[i] >= end)
                 break;
 
-            PlayWavSound(note.WavKey);
+            PlayWavSound(notes[i].WavKey);
         }
     }
 
@@ -177,7 +175,6 @@ public sealed partial class MainWindowViewModel
         _playbackTimer.Stop();
         _playbackSpeedDebounceTimer.Stop();
         _audioPlayer?.Stop();
-        _playbackNotes = Array.Empty<BmsNote>();
         IsPlaying = false;
 
         if (resetCursor)

@@ -74,13 +74,34 @@ public enum SceneKeyOutcome
 //
 // 표에 없으면 같은 규칙으로 만든 경로로 **정의를 새로 적는다**(Created). 파일은 만들지 않는다.
 // 파일이 없으면 MissingFiles 에 센다 — 게임은 파일명의 UID 만 읽지만 에디터 미리듣기는 소리가 안 난다.
-public sealed class SceneWavResolver
+public sealed partial class SceneWavResolver
 {
-    private readonly List<BmsWavItem> _wavs;
-    private readonly Dictionary<string, BmsWavItem> _byKey = new(StringComparer.OrdinalIgnoreCase);
+    private sealed class WavEntry
+    {
+        private string? _label;
+
+        public WavEntry(BmsWavItem item, string text, string? uid, string? toggleTarget)
+        {
+            Item = item;
+            Text = text;
+            Uid = uid;
+            ToggleTarget = toggleTarget;
+        }
+
+        public BmsWavItem Item { get; }
+        public string Text { get; }
+        public string? Uid { get; }
+        public string? ToggleTarget { get; }
+        public string Label => _label ??= SceneWavResolver.Label(Text);
+    }
+
+    private readonly Dictionary<string, WavEntry> _byKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<WavEntry>> _byUid = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _createdTogglesByUid = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _keyByText = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string Key, string Scene), (SceneKeyOutcome, string?)> _cache = new();
     private readonly HashSet<string> _usedKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly WavEntry? _toggleTemplate;
     private readonly int _keyWidth;
     private readonly string? _chartFolder;
     private readonly Func<string, bool> _fileExists;
@@ -93,12 +114,30 @@ public sealed class SceneWavResolver
         Func<string, bool> fileExists)
     {
         // 키 순서로 둔다. 같은 이름이 여러 번 적혀 있으면 앞 번호를 고르게 된다.
-        _wavs = wavs.OrderBy(w => w.Key, StringComparer.OrdinalIgnoreCase).ToList();
-        foreach (var wav in _wavs)
+        var ordered = wavs.OrderBy(w => w.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var wav in ordered)
         {
+            var text = TextOf(wav);
+            var uid = SceneUid.Of(text);
+            var toggleTarget = uid is not null && uid.StartsWith("0004", StringComparison.Ordinal) ? uid[4..] : null;
+            var entry = new WavEntry(wav, text, uid, toggleTarget);
+
             // 같은 번호가 두 번 정의돼 있으면 저장할 때처럼 마지막 것을 쓴다.
-            _byKey[wav.Key] = wav;
-            _keyByText.TryAdd(Normalize(TextOf(wav)), wav.Key);
+            _byKey[wav.Key] = entry;
+            _keyByText.TryAdd(Normalize(text), wav.Key);
+
+            if (uid is not null)
+            {
+                if (!_byUid.TryGetValue(uid, out var list))
+                {
+                    list = new List<WavEntry>(1);
+                    _byUid[uid] = list;
+                }
+                list.Add(entry);
+            }
+
+            if (_toggleTemplate is null && toggleTarget is not null)
+                _toggleTemplate = entry;
         }
 
         _usedKeys.UnionWith(usedKeys);
@@ -119,7 +158,7 @@ public sealed class SceneWavResolver
         string.IsNullOrEmpty(wav.SourceText) ? wav.FileName : wav.SourceText;
 
     public string? TextOfKey(string key) =>
-        _byKey.TryGetValue(key, out var wav) ? TextOf(wav) : null;
+        _byKey.TryGetValue(key, out var entry) ? entry.Text : null;
 
     public SceneKeyOutcome ResolveNote(string sourceKey, string targetScene, out string? key)
     {
@@ -138,8 +177,7 @@ public sealed class SceneWavResolver
         if (!_byKey.TryGetValue(sourceKey, out var source))
             return (SceneKeyOutcome.Unresolved, null);
 
-        var text = TextOf(source);
-        if (SceneUid.Of(text) is not { } uid || uid[..2] == "00")
+        if (source.Uid is not { } uid || uid[..2] == "00")
             return (SceneKeyOutcome.NotSceneBound, null);
 
         var fromScene = uid[..2];
@@ -149,29 +187,30 @@ public sealed class SceneWavResolver
         var targetUid = targetScene + uid[2..];
 
         // 1. 템플릿대로 바꾼 글자가 표에 그대로 있으면 그것.
-        var targetText = Rewrite(text, targetUid, fromScene, targetScene, rewriteFolder: true);
+        var targetText = Rewrite(source.Text, targetUid, fromScene, targetScene, rewriteFolder: true);
         if (_keyByText.TryGetValue(Normalize(targetText), out var exact))
             return (SceneKeyOutcome.Converted, exact);
 
         // 2. 같은 UID 중 이름표가 같은 것.
-        var sameUid = _wavs.Where(w => SceneUid.Of(TextOf(w)) == targetUid).ToList();
-        if (sameUid.Count > 0)
+        if (_byUid.TryGetValue(targetUid, out var sameUid) && sameUid.Count > 0)
         {
-            var label = Label(text);
-            var match = sameUid.FirstOrDefault(w => Label(TextOf(w)) == label);
-            if (match is not null)
-                return (SceneKeyOutcome.Converted, match.Key);
+            var label = source.Label;
+            for (var i = 0; i < sameUid.Count; i++)
+            {
+                if (sameUid[i].Label == label)
+                    return (SceneKeyOutcome.Converted, sameUid[i].Item.Key);
+            }
 
             // 이름이 하나뿐이면 홀드 시작·끝처럼 헷갈릴 일이 없다.
             if (sameUid.Count == 1)
-                return (SceneKeyOutcome.Converted, sameUid[0].Key);
+                return (SceneKeyOutcome.Converted, sameUid[0].Item.Key);
 
             // 여러 개인데 어느 것인지 모르면 짐작하지 않는다. 홀드 시작을 끝으로 바꾸면 짝이 뒤집힌다.
             return (SceneKeyOutcome.Unresolved, null);
         }
 
         // 3. 표에 없으면 같은 규칙으로 정의를 새로 적는다.
-        var created = CreateFrom(source, targetUid, fromScene, targetScene, rewriteFolder: true);
+        var created = CreateFrom(source.Item, targetUid, fromScene, targetScene, rewriteFolder: true);
         return created is null ? (SceneKeyOutcome.Unresolved, null) : (SceneKeyOutcome.Converted, created);
     }
 
@@ -198,23 +237,27 @@ public sealed class SceneWavResolver
         if (!_byKey.TryGetValue(sourceKey, out var source))
             return (SceneKeyOutcome.Unresolved, null);
 
-        var text = TextOf(source);
-        if (SceneUid.Of(text) is not { } uid || NoteSpeed.Of(uid) is not { } current)
+        if (source.Uid is not { } uid || NoteSpeed.Of(uid) is not { } current)
             return (SceneKeyOutcome.NotSceneBound, null);
 
         if (current == speed)
             return (SceneKeyOutcome.AlreadyTarget, sourceKey);
 
         var targetUid = NoteSpeed.WithSpeed(uid, speed);
-        var label = Label(text);
+        var label = source.Label;
 
-        var match = _wavs.FirstOrDefault(w => SceneUid.Of(TextOf(w)) == targetUid && Label(TextOf(w)) == label);
-        if (match is not null)
-            return (SceneKeyOutcome.Converted, match.Key);
+        if (_byUid.TryGetValue(targetUid, out var candidates))
+        {
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                if (candidates[i].Label == label)
+                    return (SceneKeyOutcome.Converted, candidates[i].Item.Key);
+            }
+        }
 
         // 씬 번호는 그대로 둔다(from == to 라 "N번 씬" 도 그대로).
         var scene = uid[..2];
-        var created = CreateFrom(source, targetUid, scene, scene, rewriteFolder: false);
+        var created = CreateFrom(source.Item, targetUid, scene, scene, rewriteFolder: false);
         return created is null ? (SceneKeyOutcome.Unresolved, null) : (SceneKeyOutcome.Converted, created);
     }
 
@@ -224,21 +267,21 @@ public sealed class SceneWavResolver
         failure = "";
         var targetUid = "0004" + targetScene;
 
-        var existing = _wavs.FirstOrDefault(w => SceneUid.Of(TextOf(w)) == targetUid);
-        if (existing is not null)
-            return existing.Key;
+        if (_byUid.TryGetValue(targetUid, out var existingList) && existingList.Count > 0)
+            return existingList[0].Item.Key;
 
-        if (Created.FirstOrDefault(w => SceneUid.Of(TextOf(w)) == targetUid) is { } made)
-            return made.Key;
+        if (_createdTogglesByUid.TryGetValue(targetUid, out var madeKey))
+            return madeKey;
 
         // 다른 씬으로 가는 전환 노트가 있으면 그 이름을 본뜬다. 폴더(씬 전환 wav 폴더)는 그대로다.
-        var template = _wavs.FirstOrDefault(w => SceneUid.ToggleTargetOf(TextOf(w)) is not null);
-        if (template is not null)
+        if (_toggleTemplate is not null)
         {
-            var fromScene = SceneUid.ToggleTargetOf(TextOf(template))!;
-            var key = CreateFrom(template, targetUid, fromScene, targetScene, rewriteFolder: false);
+            var fromScene = _toggleTemplate.ToggleTarget!;
+            var key = CreateFrom(_toggleTemplate.Item, targetUid, fromScene, targetScene, rewriteFolder: false);
             if (key is null)
                 failure = "키음 번호가 가득 차서 씬 전환 노트를 정의할 자리가 없습니다.";
+            else
+                _createdTogglesByUid[targetUid] = key;
             return key;
         }
 
@@ -254,6 +297,8 @@ public sealed class SceneWavResolver
         var newKey = AddDefinition(text, Path.Combine(_chartFolder, text), isPathGuessed: false);
         if (newKey is null)
             failure = "키음 번호가 가득 차서 씬 전환 노트를 정의할 자리가 없습니다.";
+        else
+            _createdTogglesByUid[targetUid] = newKey;
         return newKey;
     }
 
@@ -287,9 +332,14 @@ public sealed class SceneWavResolver
             IsPathGuessed = isPathGuessed,
         };
 
+        var text = TextOf(wav);
+        var uid = SceneUid.Of(text);
+        var toggleTarget = uid is not null && uid.StartsWith("0004", StringComparison.Ordinal) ? uid[4..] : null;
+        var entry = new WavEntry(wav, text, uid, toggleTarget);
+
         Created.Add(wav);
-        _byKey[key] = wav;
-        _keyByText.TryAdd(Normalize(TextOf(wav)), key);
+        _byKey[key] = entry;
+        _keyByText.TryAdd(Normalize(text), key);
 
         if (!_fileExists(filePath))
             MissingFiles++;
@@ -310,6 +360,24 @@ public sealed class SceneWavResolver
         return null;
     }
 
+    [GeneratedRegex(@"스피드(\s*)\d")]
+    private static partial Regex SpeedValueRegex();
+
+    [GeneratedRegex(@"(?<!\d)0*(\d+)(?=\s*번\s*씬)")]
+    private static partial Regex SceneNumberRegex();
+
+    [GeneratedRegex(@"스피드\s*\d")]
+    private static partial Regex LabelSpeedRegex();
+
+    [GeneratedRegex(@"(?<!\d)\d+\s*번\s*씬")]
+    private static partial Regex LabelSceneRegex();
+
+    [GeneratedRegex(@"_dt-?[0-9.]+", RegexOptions.IgnoreCase)]
+    private static partial Regex LabelDeltaRegex();
+
+    [GeneratedRegex(@"[\s_]+")]
+    private static partial Regex LabelSeparatorRegex();
+
     // 파일명의 UID 를 갈고, 파일명과 바로 위 폴더 이름의 "N번 씬" 을 새 번호로 바꾼다.
     // 그보다 위 폴더는 건드리지 않는다. 곡 폴더 이름에 우연히 "1번 씬" 이 들어 있을 수 있다.
     internal static string Rewrite(string path, string newUid, string fromScene, string toScene, bool rewriteFolder)
@@ -328,7 +396,7 @@ public sealed class SceneWavResolver
             // 속도를 바꿨으면 이름의 "스피드N" 도 맞춘다. 안 그러면 011003 인데 "스피드1" 로 읽힌다.
             // 속도가 그대로면(씬만 바꿀 때) 이름은 건드리지 않는다.
             if (NoteSpeed.Of(newUid) is { } newSpeed && NoteSpeed.Of(oldUid) != newSpeed)
-                name = Regex.Replace(name, @"스피드(\s*)\d", $"스피드${{1}}{newSpeed}");
+                name = SpeedValueRegex().Replace(name, $"스피드${{1}}{newSpeed}");
         }
         name = ReplaceSceneNumber(name, fromScene, toScene);
 
@@ -353,7 +421,10 @@ public sealed class SceneWavResolver
         }
 
         var to = toNum.ToString(CultureInfo.InvariantCulture);
-        return Regex.Replace(text, $@"(?<!\d)0*{from}(?=\s*번\s*씬)", to);
+        return SceneNumberRegex().Replace(text, m =>
+            int.TryParse(m.Groups[1].ValueSpan, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value == from
+                ? to
+                : m.Value);
     }
 
     // 씬·속도마다 달라지는 부분(UID·"N번 씬"·"스피드N"·_dt 값·확장자)을 뗀 이름. 같은 키음인지 볼 때 쓴다.
@@ -365,10 +436,10 @@ public sealed class SceneWavResolver
         if (SceneUid.Of(name) is not null)
             name = name[6..];
 
-        name = Regex.Replace(name, @"스피드\s*\d", "");
-        name = Regex.Replace(name, @"(?<!\d)\d+\s*번\s*씬", "");
-        name = Regex.Replace(name, @"_dt-?[0-9.]+", "", RegexOptions.IgnoreCase);
-        name = Regex.Replace(name, @"[\s_]+", " ");
+        name = LabelSpeedRegex().Replace(name, "");
+        name = LabelSceneRegex().Replace(name, "");
+        name = LabelDeltaRegex().Replace(name, "");
+        name = LabelSeparatorRegex().Replace(name, " ");
         return name.Trim().ToLowerInvariant();
     }
 

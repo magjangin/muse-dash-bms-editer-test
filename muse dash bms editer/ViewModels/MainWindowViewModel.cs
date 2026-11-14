@@ -37,7 +37,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private DateTimeOffset _playbackStartedAt;
     private double _playbackStartSeconds;
     private double _lastPlaybackPositionSeconds;
-    private BmsNote[] _playbackNotes = Array.Empty<BmsNote>();
     private readonly KeySoundPlayer _keySoundPlayer = new();
 
     // OGG 로딩 및 재생 상태
@@ -271,13 +270,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnBeatSplitChanged(int value) => OnPropertyChanged(nameof(GridDisplay));
     partial void OnGridMeasureChanged(int value) => OnPropertyChanged(nameof(GridDisplay));
 
-    // 화면에 묶인 헤더 값이 바뀌면 문서를 고친 것이다.
-    partial void OnTitleChanged(string value) => MarkDirty();
-    partial void OnArtistChanged(string value) => MarkDirty();
-    partial void OnGenreChanged(string value) => MarkDirty();
-    partial void OnLevelChanged(string value) => MarkDirty();
-    partial void OnPlayerChanged(int value) => MarkDirty();
-    partial void OnRankChanged(int value) => MarkDirty();
+    // 화면에 묶인 헤더 값이 바뀌면 Chart.Header 도 즉시 맞춰 단일 진실 공급원으로 유지한다.
+    partial void OnTitleChanged(string value) { Chart.Header.Title = value; MarkDirty(); }
+    partial void OnArtistChanged(string value) { Chart.Header.Artist = value; MarkDirty(); }
+    partial void OnGenreChanged(string value) { Chart.Header.Genre = value; MarkDirty(); }
+    partial void OnLevelChanged(string value) { Chart.Header.Level = value; MarkDirty(); }
+    partial void OnPlayerChanged(int value) { Chart.Header.Player = value + 1; MarkDirty(); }
+    partial void OnRankChanged(int value) { Chart.Header.Rank = value; MarkDirty(); }
 
     partial void OnBpmChanged(double value)
     {
@@ -309,6 +308,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public void InvalidateTimeline()
     {
         _timeline = null;
+        _sortedNoteSecondsCache = null;
         OnPropertyChanged(nameof(Timeline));
         UpdateGridFitAdvice();
     }

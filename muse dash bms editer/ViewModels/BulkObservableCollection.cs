@@ -14,6 +14,25 @@ namespace bms_editer.ViewModels;
 // 재집계 301회, 약 337만 회 비교. 실전 규모(키음 1000 / 노트 5000)면 3,500만 회다.
 public sealed class BulkObservableCollection<T> : ObservableCollection<T>
 {
+    public void AddRange(IEnumerable<T> items)
+    {
+        CheckReentrancy();
+
+        var added = false;
+        foreach (var item in items)
+        {
+            Items.Add(item);
+            added = true;
+        }
+
+        if (!added)
+            return;
+
+        OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+        OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+        OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
+
     public void ReplaceAll(IEnumerable<T> items)
     {
         CheckReentrancy();

@@ -24,7 +24,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
     public WavPaletteViewModel(MainWindowViewModel owner) : base(owner)
     {
         Filters = new WavTraitFilter(Refresh);
-        Filters.Rebuild(Owner.WavList.Select(item => item.FileName));
+        Filters.Rebuild(Owner.WavList);
         Refresh();
     }
 
@@ -118,12 +118,18 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
 
     protected override void OnWavListChanged()
     {
-        Filters.Rebuild(Owner.WavList.Select(item => item.FileName));
+        Filters.Rebuild(Owner.WavList);
         Refresh();
     }
 
     // 새로 넣은 키음이 검색어에 걸려 안 보이면 추가한 걸 못 찾으므로 검색어를 지운다.
-    // 실패하면 false. 여러 개를 담을 때 어디서 멈췄는지 부르는 쪽이 알아야 한다.
+    public int AddWavs(IEnumerable<string> filePaths)
+    {
+        ResetFilters();
+        return Owner.AddWavs(filePaths);
+    }
+
+    // 실패하면 false.
     public bool AddWav(string filePath)
     {
         ResetFilters();
@@ -149,7 +155,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
         var filter = Filter.Trim();
 
         Items = Owner.WavList
-            .Where(item => Filters.Passes(item.FileName) && (filter.Length == 0 || WavSearch.Matches(item, filter)))
+            .Where(item => Filters.Passes(item) && (filter.Length == 0 || WavSearch.Matches(item, filter)))
             .ToList();
 
         OnPropertyChanged(nameof(TotalCount));

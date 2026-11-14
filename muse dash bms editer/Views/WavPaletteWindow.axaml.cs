@@ -41,23 +41,29 @@ public partial class WavPaletteWindow : Window
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "WAV 파일 선택",
+            Title = "키음 파일 선택",
             AllowMultiple = true,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("WAV 오디오") { Patterns = new[] { "*.wav" } },
+                new FilePickerFileType("키음 오디오") { Patterns = new[] { "*.wav", "*.ogg" } },
             },
         });
 
-        foreach (var path in files.Select(f => f.TryGetLocalPath()).Where(p => p is not null))
-        {
-            // 하나라도 실패하면 멈추고 알린다. 조용히 넘어가면 몇 개가 담겼는지 알 수 없다.
-            if (vm.AddWav(path!))
-                continue;
+        var paths = files
+            .Select(f => f.TryGetLocalPath())
+            .Where(p => p is not null)
+            .Select(p => p!)
+            .ToArray();
 
+        if (paths.Length == 0)
+            return;
+
+        // 하나라도 실패하면 멈추고 알린다. 조용히 넘어가면 몇 개가 담겼는지 알 수 없다.
+        vm.AddWavs(paths);
+        if (vm.Owner.LastErrorMessage is not null)
+        {
             await ConfirmWindow.ShowMessageAsync(
                 this, $"키음을 추가하지 못했습니다.\n\n{vm.Owner.LastErrorMessage}", "키음 추가 실패");
-            return;
         }
     }
 }

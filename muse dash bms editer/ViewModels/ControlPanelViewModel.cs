@@ -62,7 +62,7 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
     public ControlPanelViewModel(MainWindowViewModel owner) : base(owner)
     {
         Filters = new WavTraitFilter(() => ApplyWavFilter(SelectedWavStat?.Key));
-        Filters.Rebuild(WavStats.Select(stat => stat.FileName));
+        Filters.Rebuild(WavStats.Select(stat => stat.Traits));
         ApplyWavFilter(null);
 
         ReplacementWavKey = WavKey.Format(1, Owner.WavKeyWidth);
@@ -98,8 +98,8 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
         var query = WavFilter.Trim();
         VisibleWavStats = WavStats
-            .Where(stat => (Filters?.Passes(stat.FileName) ?? true) &&
-                           (query.Length == 0 || WavSearch.Matches(stat.Key, stat.FileName, query)))
+            .Where(stat => (Filters?.Passes(stat.Traits) ?? true) &&
+                           (query.Length == 0 || WavSearch.Matches(stat.Key, stat.FileName, stat.ShortName, query)))
             .ToList();
 
         SelectedWavStat = keepKey is null
@@ -292,7 +292,7 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
                 string.Equals(stat.LaneId, _selectedLaneId, StringComparison.OrdinalIgnoreCase));
 
         // 쓰인 키음이 바뀌었으니 분류 드롭다운 값도 다시 뽑는다(첫 집계 때는 아직 없다).
-        Filters?.Rebuild(WavStats.Select(stat => stat.FileName));
+        Filters?.Rebuild(WavStats.Select(stat => stat.Traits));
         ApplyWavFilter(_selectedWavKey);
 
         _isRefreshing = false;

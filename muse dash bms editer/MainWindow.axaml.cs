@@ -492,15 +492,19 @@ public partial class MainWindow : Window
                 },
             });
 
-            foreach (var path in files.Select(f => f.TryGetLocalPath()).Where(p => p is not null))
-            {
-                // 예전에는 실패해도 아무 표시가 없어서, 키음이 한도를 넘으면 조용히 아무 일도 안 났다.
-                if (vm.AddWav(path!))
-                    continue;
+            var paths = files
+                .Select(f => f.TryGetLocalPath())
+                .Where(p => p is not null)
+                .Select(p => p!)
+                .ToArray();
 
-                await ConfirmWindow.ShowMessageAsync(this, $"키음을 추가하지 못했습니다.\n\n{vm.LastErrorMessage}", "키음 추가 실패");
+            if (paths.Length == 0)
                 return;
-            }
+
+            // 예전에는 실패해도 아무 표시가 없어서, 키음이 한도를 넘으면 조용히 아무 일도 안 났다.
+            vm.AddWavs(paths);
+            if (vm.LastErrorMessage is not null)
+                await ConfirmWindow.ShowMessageAsync(this, $"키음을 추가하지 못했습니다.\n\n{vm.LastErrorMessage}", "키음 추가 실패");
         }
 
         // 목록을 마우스로 골랐으면 키 입력을 격자로 돌려준다.

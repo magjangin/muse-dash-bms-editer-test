@@ -89,12 +89,19 @@ public static partial class WavSearch
     // 낱말은 번호, 파일명, 표시 이름(예: "1번 씬"), 초성으로 맞춰 본다. 예) "ㅎㅌ 지상" → "하트 지상".
     // 규칙은 아래 문자열판 한 곳에만 둔다. item.ShortName 은 부를 때마다 DisplayName 을 새로 계산하므로
     // 낱말마다 부르지 않는다.
-    public static bool Matches(BmsWavItem item, string query) => Matches(item.Key, item.FileName, query);
+    public static bool Matches(BmsWavItem item, string query) =>
+        MatchesCore(item.Key, item.FileName, item.ShortName, query);
 
-    public static bool Matches(string key, string fileName, string query)
+    public static bool Matches(string key, string fileName, string query) =>
+        MatchesCore(key, fileName, null, query);
+
+    public static bool Matches(string key, string fileName, string? displayName, string query) =>
+        MatchesCore(key, fileName, displayName, query);
+
+    private static bool MatchesCore(string key, string fileName, string? cachedDisplayName, string query)
     {
         // 표시 이름은 번호·파일명으로 안 맞을 때만, 그것도 한 번만 계산한다.
-        string? displayName = null;
+        var displayName = cachedDisplayName;
         var tokens = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         foreach (var token in tokens)
         {

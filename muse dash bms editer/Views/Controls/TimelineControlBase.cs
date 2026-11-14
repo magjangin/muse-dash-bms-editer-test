@@ -306,14 +306,17 @@ public abstract class TimelineControlBase : Control
     }
 
     // 화면 구간을 시간 비율(0~1) 구간으로. 세로 뷰는 아래가 0초라 뒤집힌다.
-    protected (double From, double To) ToRatioRange(TimelineRange range, double timelineLength)
+    protected (double From, double To) ToRatioRange(TimelineRange range, double timelineLength) =>
+        ToRatioRange(range, timelineLength, IsHorizontalView);
+
+    protected static (double From, double To) ToRatioRange(TimelineRange range, double timelineLength, bool isHorizontal)
     {
         if (range.IsAll || timelineLength <= 0)
             return (0.0, 1.0);
 
         var from = Math.Clamp(range.Start / timelineLength, 0.0, 1.0);
         var to = Math.Clamp(range.End / timelineLength, 0.0, 1.0);
-        return IsHorizontalView ? (from, to) : (1.0 - to, 1.0 - from);
+        return isHorizontal ? (from, to) : (1.0 - to, 1.0 - from);
     }
 
     protected double GetTimelineHeight() =>
@@ -362,34 +365,40 @@ public abstract class TimelineControlBase : Control
     // range 안의 격자선만 내놓는다. 범위 밖을 건너뛸 뿐 선의 위치·종류는 전체를 셀 때와 같다.
     protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength, TimelineRange range)
     {
-        var split = Math.Max(1, BeatSplit);
+        // 렌더 한 번 동안 값이 바뀌지 않으므로 루프 밖에서 한 번만 읽어 StyledProperty 조회를 없앤다.
+        var beatSplit = BeatSplit;
+        var split = Math.Max(1, beatSplit);
+        var gridMeasure = GridMeasure;
+        var isHorizontal = IsHorizontalView;
+        var durationSeconds = DurationSeconds;
+        var bpm = Bpm;
+        var timeline = EffectiveTimeline;
 
         // 배경 음원이 있으면 화면 전체가 곡 길이를 뜻하므로 초 단위로 훑는다.
-        if (DurationSeconds > 0 && Bpm > 0)
+        if (durationSeconds > 0 && bpm > 0)
         {
             // 격자 칸의 시각은 Timeline 이 정한다. 예전에는 여기서 240/(BPM*split) 을
             // 직접 써서, BPM 이 바뀌거나 4/4가 아닌 마디가 있으면 그 뒤로 전부 어긋났다.
-            var timeline = EffectiveTimeline;
-            var (ratioFrom, ratioTo) = ToRatioRange(range, timelineLength);
+            var (ratioFrom, ratioTo) = ToRatioRange(range, timelineLength, isHorizontal);
 
             // 앞쪽을 건너뛴다. 한 칸 여유를 둬서 경계의 선이 빠지지 않게 한다.
             var firstIndex = ratioFrom > 0
-                ? Math.Max(0, (int)Math.Floor(timeline.MeasurePositionAt(ratioFrom * DurationSeconds) * split) - 1)
+                ? Math.Max(0, (int)Math.Floor(timeline.MeasurePositionAt(ratioFrom * durationSeconds) * split) - 1)
                 : 0;
-            var lastSeconds = ratioTo * DurationSeconds;
+            var lastSeconds = ratioTo * durationSeconds;
 
             for (var index = firstIndex; ; index++)
             {
                 var seconds = timeline.SecondsAt((double)index / split);
-                if (seconds > DurationSeconds)
+                if (seconds > durationSeconds)
                     yield break;
 
-                var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
+                var position = ToTimelinePosition(seconds / durationSeconds, timelineLength, isHorizontal);
                 if (position >= -0.5 && position <= timelineLength + 0.5 && range.Contains(position))
                 {
                     yield return new GridLine(
                         position,
-                        ClassifyGridLine(index, split),
+                        ClassifyGridLine(index, split, gridMeasure),
                         index / split,
                         seconds);
                 }
@@ -401,17 +410,17 @@ public abstract class TimelineControlBase : Control
         else
         {
             // 음원이 없으면 마디 높이가 곧 화면 높이다.
-            var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-            var measureTimeline = EffectiveTimeline;
+            var measureCount = MeasureCount;
+            var rowHeight = RowHeight * VerticalZoom * GridSpacingScale(beatSplit, gridMeasure);
 
             var firstMeasure = 0;
-            var lastMeasure = MeasureCount;
+            var lastMeasure = measureCount;
             if (!range.IsAll && rowHeight > 0)
             {
-                var from = IsHorizontalView ? range.Start / rowHeight : (timelineLength - range.End) / rowHeight;
-                var to = IsHorizontalView ? range.End / rowHeight : (timelineLength - range.Start) / rowHeight;
-                firstMeasure = Math.Clamp((int)Math.Floor(from), 0, MeasureCount);
-                lastMeasure = Math.Clamp((int)Math.Ceiling(to), 0, MeasureCount);
+                var from = isHorizontal ? range.Start / rowHeight : (timelineLength - range.End) / rowHeight;
+                var to = isHorizontal ? range.End / rowHeight : (timelineLength - range.Start) / rowHeight;
+                firstMeasure = Math.Clamp((int)Math.Floor(from), 0, measureCount);
+                lastMeasure = Math.Clamp((int)Math.Ceiling(to), 0, measureCount);
             }
 
             // 마지막 마디의 닫는 선까지 그리려고 MeasureCount 까지 돈다.
@@ -422,7 +431,7 @@ public abstract class TimelineControlBase : Control
                 {
                     var measurePosition = measure + (beat / (double)split);
                     var offset = measurePosition * rowHeight;
-                    var position = IsHorizontalView ? offset : timelineLength - offset;
+                    var position = isHorizontal ? offset : timelineLength - offset;
 
                     // 곱셈 순서 차이로 끝 선이 반 픽셀쯤 넘칠 수 있어 여유를 둔다.
                     if (position < -0.5 || position > timelineLength + 0.5 || !range.Contains(position))
@@ -430,24 +439,27 @@ public abstract class TimelineControlBase : Control
 
                     yield return new GridLine(
                         position,
-                        ClassifyGridLine(beat, split),
+                        ClassifyGridLine(beat, split, gridMeasure),
                         measure,
-                        measureTimeline.SecondsAt(measurePosition));
+                        timeline.SecondsAt(measurePosition));
                 }
             }
         }
     }
 
-    private GridLineKind ClassifyGridLine(int index, int split) =>
+    private static GridLineKind ClassifyGridLine(int index, int split, int gridMeasure) =>
         Mod(index, split) == 0
             ? GridLineKind.Measure
-            : IsMeasureBeatLine(index, split, GridMeasure)
+            : IsMeasureBeatLine(index, split, gridMeasure)
                 ? GridLineKind.Beat
                 : GridLineKind.SubBeat;
 
     // 세로 뷰는 아래가 0초라 비율을 뒤집는다. 이 뒤집기가 여기저기 흩어져 있었다.
     protected double ToTimelinePosition(double ratio, double timelineLength) =>
-        IsHorizontalView ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
+        ToTimelinePosition(ratio, timelineLength, IsHorizontalView);
+
+    protected static double ToTimelinePosition(double ratio, double timelineLength, bool isHorizontal) =>
+        isHorizontal ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
 
     private static readonly IPen PlaybackCursorGlowPen =
         new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);

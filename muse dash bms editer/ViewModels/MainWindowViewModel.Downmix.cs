@@ -69,8 +69,7 @@ public sealed partial class MainWindowViewModel
         BmsParseResult parsedSource;
         try
         {
-            source = KeyboardChartReader.Read(filePath);
-            parsedSource = BmsParser.Parse(filePath);
+            (source, parsedSource) = KeyboardChartReader.ReadWithChart(filePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
         {

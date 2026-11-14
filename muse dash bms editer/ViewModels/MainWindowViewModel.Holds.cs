@@ -56,7 +56,13 @@ public sealed partial class MainWindowViewModel
         var result = HoldPairingEngine.Pair(Chart.Notes, BuildWavTexts(), HoldProfile);
 
         HoldResult = result;
-        _holdNotes = new HashSet<BmsNote>(result.Links.SelectMany(link => new[] { link.Head, link.Tail }));
+        var holdNotes = new HashSet<BmsNote>(result.Links.Count * 2);
+        foreach (var link in result.Links)
+        {
+            holdNotes.Add(link.Head);
+            holdNotes.Add(link.Tail);
+        }
+        _holdNotes = holdNotes;
         HoldProblemNotes = result.Diagnostics
             .Where(d => d.Severity == HoldDiagnosticSeverity.Error)
             .Select(d => d.Note)
@@ -91,12 +97,18 @@ public sealed partial class MainWindowViewModel
     // 키 -> #WAV 에 적힌 글자 그대로. 뮤즈 대시는 파일명 앞 6자리 UID 로 종류를 가리는데,
     // 폴더가 붙은 채로 적혀 있어서(`10번 씬 wav폴더\000201_하트 지상.wav`) 원문을 넘기고
     // 폴더를 떼는 일은 규칙 쪽(HoldRoleClassifier)에 맡긴다.
+    // WavList 가 바뀔 때만 InvalidateWavSnapshot() 에서 비운다.
+    private IReadOnlyDictionary<string, string>? _wavTextsCache;
+
     private IReadOnlyDictionary<string, string> BuildWavTexts()
     {
-        var texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (_wavTextsCache is { } cached)
+            return cached;
+
+        var texts = new Dictionary<string, string>(WavList.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var item in WavList)
             texts[item.Key] = string.IsNullOrEmpty(item.SourceText) ? item.FileName : item.SourceText;
 
-        return texts;
+        return _wavTextsCache = texts;
     }
 }
