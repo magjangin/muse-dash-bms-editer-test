@@ -18,6 +18,7 @@ public sealed class AppSettings
     public bool IsHorizontalView { get; set; }
     public bool IsCircleNoteShape { get; set; }
     public bool HideUnusedLanes { get; set; }
+    public bool ShowNoteSpeed { get; set; }
     public bool SnapToGrid { get; set; } = true;
     public bool FollowPlaybackCursor { get; set; } = true;
     public double PlaybackSpeed { get; set; } = 1.0;
