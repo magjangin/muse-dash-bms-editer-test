@@ -143,7 +143,7 @@ var half = GetDisplayPeak(peaks, startRatio, endRatio) * maxAmplitude;
 
 ### 6. 음원 오프셋
 
-오프셋은 **음원에서 나온 것만**(파형 · 온셋 마커 · 재생 커서) 타임라인 위에서 민 값입니다. 격자와 노트, `ChartTimeline` 은 건드리지 않습니다.
+오프셋은 **음원에서 나온 것만**(파형 · 재생 커서) 타임라인 위에서 민 값입니다. 격자와 노트, `ChartTimeline` 은 건드리지 않습니다.
 
 ```csharp
 // TimelineControlBase

@@ -112,6 +112,14 @@ muse dash bms editer/
 * ❌ **`avares://` 경로에 어셈블리 이름 박기**:
   - 배포 프로필의 `<AssemblyName>` 이 `muse dash bms editer 1` / `2` 라 고정 이름으로는 배포본에서만 그림을 못 찾았고, `try/catch` 에 묻혀 조용히 기본 아이콘이 떴습니다. `Assembly.GetName().Name` 을 쓰십시오.
 
+* ❌ **파형 위에 온셋(어택) 세로선 그리기** (`6c1276f` 에서 제거):
+  - 소리는 격자에 맞는데 선은 어긋나 보이는 곡(With 164 BPM)에서 오히려 판단을 흐렸습니다. 다시 그리지 마십시오. 온셋은 ⚡ 오프셋 자동 맞춤(`TryDetectAudioOffsetMs`)의 재료로만 남아 있습니다.
+  - 대신 [`GridFitAdvisor`](muse%20dash%20bms%20editer/Services/GridFitAdvisor.cs) 가 "파형으로 맞춰도 되나 / 소리로 들어야 하나"만 안내합니다. 사용자가 **숫자(몇 ms 어긋남)는 원하지 않았습니다.**
+* ❌ **격자 판정을 "격자 ±15ms 안에 드는 어택 비율"로 하기**:
+  - 루바토·스윙·셋잇단처럼 원래 16분 격자 밖 소리가 많은 곡(your reality 0.23, 아기상어 0.20)까지 "소리로 들으세요"로 걸렀습니다. 지금은 "8마디 구간이 같은 쪽으로 25ms 이상 3구간 연속 밀림"을 봅니다. 보정 근거(11곡)는 `GridFitAdvisor.cs` 머리 주석에 있습니다.
+* ⚠️ **자동 BPM 의 iBMSC 값은 일부러 원본 그대로입니다**:
+  - [`IbmscBpmDetector`](muse%20dash%20bms%20editer/Services/IbmscBpmDetector.cs) 는 iBMSC 와 같은 숫자를 보려고 옮긴 것이라, cos 만 쓰는 점수 식·저음 필터의 채널 오해까지 그대로 둡니다. "고치면" 비교 기준이 사라집니다. 소수점은 [`PreciseBpmDetector`](muse%20dash%20bms%20editer/Services/PreciseBpmDetector.cs) 몫입니다.
+
 * ❌ **XAML 에 `NumericUpDown` 을 그대로 쓰기**:
   - Avalonia 12.0.5 의 자동화 연결이 `decimal` 을 UIA 로 못 넘겨, 화면 낭독기·접근성 도구가 붙어 있으면 값이 바뀔 때 예외가 납니다(차트를 여는 도중 문서가 반쯤만 들어옴). 평소에는 안 보입니다. [`NumberBox`](muse%20dash%20bms%20editer/Views/Controls/NumberBox.cs) 를 쓰십시오.
 
