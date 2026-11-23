@@ -148,8 +148,13 @@ muse dash bms editer/
 
 ## 7. 검증 현황 & 문서 점검 체크리스트
 
-* **현재 버전**: v0.1.5 (`.csproj` 의 `Version`). **테스트 464개 전부 통과** (2026-11-22, `dotnet test "muse dash bms editer.slnx"`).
+* **현재 버전**: v0.1.6 (`.csproj` 의 `Version`). **테스트 465개 전부 통과, 빌드 경고 0** (2026-11-23, GitHub Actions `windows-latest` · `-warnaserror`).
   일부 "실제 차트" 테스트는 개발 PC 의 게임 폴더를 읽고, 없으면 통과로 끝납니다.
 * **문서를 고칠 때 같이 볼 곳**: 새 서비스/뷰모델을 추가하면 [`docs/architecture/code_explanation.md`](docs/architecture/code_explanation.md) 의 표와 테스트 묶음 표,
-  버전·테스트 수가 바뀌면 `docs/issues/known_issues.md` 머리말과 이 절을 함께 갱신하십시오 (이전에 224개로 굳어 있던 적이 있습니다).
+  버전·테스트 수가 바뀌면 `docs/issues/known_issues.md` 머리말, README 뱃지·테스트 수, `CHANGELOG.md` 와 이 절을 함께 갱신하십시오 (이전에 224개로 굳어 있던 적이 있습니다).
 * **점검 요청의 범위**: "문서/코드를 봐 달라"는 요청은 문서를 코드에 맞추는 일입니다. 찾은 버그는 `docs/issues/` 에 적기만 하고, 코드 수정은 먼저 확인받으십시오.
+
+### CI 와 릴리즈 (2026-11-23~)
+* `.github/workflows/ci.yml`: 모든 브랜치 푸시·PR 마다 `windows-latest` 에서 `dotnet build -warnaserror` + `dotnet test`. 클라우드 세션(리눅스)에는 .NET SDK 를 받을 수 없어 **컴파일 확인은 이 CI 가 유일한 수단**입니다.
+* 릴리즈: csproj `<Version>` · README 뱃지 · `CHANGELOG.md` `## [<버전>]` 을 같이 올려 main 에 머지한 뒤 태그 `v<버전>` 을 밀면, CI 가 버전 일치를 확인하고 `PublishProfile=release` 로 묶어 `muse-dash-bms-editer-v<버전>-win-x64.zip`(exe 하나)을 릴리즈합니다. zip 에 `note_icons` 가 섞이면 실패하게 해 두었습니다(공개 배포에 게임 저작물 금지). 로컬 `build_release.ps1` 은 개발 PC 의 `note_icons` 를 옆에 복사하므로 그 폴더째로는 공개 배포하지 마십시오.
+* "실제 차트" 테스트(`H:\…` 경로)는 CI 에 그 폴더가 없어 통과로 끝납니다. 그 경로를 건드린 변경은 개발 PC 에서 한 번 더 돌리십시오.
