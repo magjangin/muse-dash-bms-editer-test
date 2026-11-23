@@ -1,0 +1,86 @@
+name: CI
+
+# 빌드·테스트는 Windows 에서만 돈다(WebView2·waveOut·WinExe).
+# 태그 v<버전> 을 밀면 2번 릴리즈용(에셋 미포함) exe 를 묶어 GitHub 릴리즈로 올린다.
+# 노트 그림(note_icons)은 게임 저작물이라 러너에 없고, 배포 zip 에도 들어가지 않는다.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build (경고 0 / 오류 0)
+        run: dotnet build "muse dash bms editer.slnx" -c Release -warnaserror
+      - name: Test
+        run: dotnet test "muse dash bms editer.slnx" -c Release --no-build --logger "trx;LogFileName=results.trx"
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results
+          path: "**/TestResults/*.trx"
+          if-no-files-found: ignore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: 태그와 csproj 버전 일치 확인
+        id: ver
+        shell: pwsh
+        run: |
+          [xml]$proj = Get-Content "muse dash bms editer/muse dash bms editer.csproj"
+          $version = ($proj.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          if ($version -ne $tag) { throw "태그 v$tag 와 csproj Version $version 가 다릅니다." }
+          $notes = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $m = [regex]::Match($notes, "(?ms)^## \[$([regex]::Escape($version))\][^\n]*\n(.*?)(?=^## \[|\z)")
+          if (-not $m.Success) { throw "CHANGELOG.md 에 ## [$version] 항목이 없습니다." }
+          $body = $m.Groups[1].Value.Trim() + "`n`n## 참고`n- Windows x64 단일 exe(.NET 런타임 포함)입니다. 압축을 풀어 바로 실행하면 됩니다.`n- 노트 그림은 들어 있지 않습니다. [Spine Support Tool](https://github.com/magjangin/spine-support-tool)로 렌더한 뒤 **편집 → 노트 그림 가져오기...** 로 만드세요.`n"
+          Set-Content -Path release_notes.md -Value $body -Encoding utf8
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Publish (2번 릴리즈용, 에셋 미포함)
+        run: dotnet publish "muse dash bms editer/muse dash bms editer.csproj" -p:PublishProfile=release
+      - name: Zip
+        shell: pwsh
+        run: |
+          $exe = "publish/release/muse dash 1 bms editer 2.exe"
+          if (-not (Test-Path $exe)) { throw "산출물이 없습니다: $exe" }
+          if (Test-Path "publish/release/note_icons") { throw "릴리즈 zip 에 note_icons 가 들어가면 안 됩니다." }
+          $zip = "muse-dash-bms-editer-v${{ steps.ver.outputs.version }}-win-x64.zip"
+          Compress-Archive -Path $exe -DestinationPath $zip
+          Get-FileHash $zip -Algorithm SHA256 | ForEach-Object { "`n- SHA256: ``$($_.Hash)``" } | Add-Content release_notes.md -Encoding utf8
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" "muse-dash-bms-editer-v${{ steps.ver.outputs.version }}-win-x64.zip" --title "${{ github.ref_name }}" --notes-file release_notes.md

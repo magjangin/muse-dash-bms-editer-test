@@ -370,6 +370,17 @@ public sealed class AutoSaveAndSettingsTests : IDisposable
     }
 
     [Fact]
+    public void 설정을_다시_저장하면_덮어쓰고_임시_파일을_남기지_않는다()
+    {
+        var path = Path.Combine(_root, "settings.json");
+        new AppSettings { VerticalZoom = 12 }.Save(path);
+        new AppSettings { VerticalZoom = 34 }.Save(path);
+
+        Assert.Equal(34, AppSettings.Load(path).VerticalZoom);
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    [Fact]
     public void 깨진_설정_파일은_기본값으로_돌아간다()
     {
         var path = Path.Combine(_root, "settings.json");

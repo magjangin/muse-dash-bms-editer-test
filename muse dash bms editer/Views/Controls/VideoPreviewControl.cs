@@ -101,6 +101,12 @@ public sealed class VideoPreviewControl : Control, IDisposable
         InvalidateVisual();
 
         await EnsureWebViewAsync();
+
+        // 엔진을 띄우는 사이 다른 영상을 열었거나 지웠거나 컨트롤이 떨어졌으면 이 요청은 낡았다.
+        // 그대로 이어 가면 방금 연 영상 대신 옛 영상이 보인다.
+        if (_disposed || !string.Equals(_pendingVideoPath, filePath, StringComparison.Ordinal))
+            return;
+
         if (_webView is null)
         {
             _statusText = "비디오 엔진 초기화 실패";
@@ -123,6 +129,9 @@ public sealed class VideoPreviewControl : Control, IDisposable
         InvalidateVisual();
 
         await EnsureWebViewAsync();
+        if (_disposed || _hasVideo)
+            return; // 그사이 새 영상을 열었다. 빈 화면으로 덮지 않는다.
+
         _webView?.NavigateToString(BuildEmptyHtml());
     }
 

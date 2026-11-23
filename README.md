@@ -9,7 +9,7 @@
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)
 ![Avalonia 12](https://img.shields.io/badge/Avalonia_UI-12-8B44AC)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D4)
-![version](https://img.shields.io/badge/version-0.1.5-lightgrey)
+![version](https://img.shields.io/badge/version-0.1.6-lightgrey)
 ![status](https://img.shields.io/badge/status-testing-orange)
 
 > [!NOTE]
@@ -158,6 +158,7 @@
 | `publish/release/muse dash 1 bms editer 2.exe` | 블루 · 2 | 그림 미내장 exe + 옆의 `note_icons/` 폴더 |
 
 창 제목 끝의 `(1. 개인용)` / `(2. 릴리즈용)` 으로도 구별됩니다.
+GitHub 릴리즈의 zip 은 2번 exe **하나만** 담습니다(`note_icons/` 없음). 태그 `v<버전>` 을 밀면 GitHub Actions 가 빌드·테스트 뒤 자동으로 올립니다([CHANGELOG.md](CHANGELOG.md)).
 `.NET` 단일 파일 특성상 **exe 이름을 직접 바꾸면 실행되지 않습니다** — 이름은 배포 프로필에서 정해집니다.
 
 ### 명령어
@@ -166,7 +167,7 @@
 # 실행
 dotnet run --project "muse dash bms editer/muse dash bms editer.csproj"
 
-# 테스트 (200개 넘는 단위·통합 테스트, 화면 없이 창까지 띄워 확인)
+# 테스트 (465개 단위·통합 테스트, 화면 없이 창까지 띄워 확인)
 dotnet test "muse dash bms editer.slnx"
 
 # [추천] 한 번에 빌드 (1번 개인용 + 2번 릴리즈용 둘 다 빌드)

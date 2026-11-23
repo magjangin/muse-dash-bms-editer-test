@@ -269,15 +269,24 @@ public sealed class AutoSaveStore : IDisposable
     private static void WriteAtomic(string path, string content)
     {
         var temp = path + ".tmp";
-        using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
-        using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+        try
         {
-            writer.Write(content);
-            writer.Flush();
-            stream.Flush(flushToDisk: true);
-        }
+            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(content);
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
 
-        File.Move(temp, path, overwrite: true);
+            File.Move(temp, path, overwrite: true);
+        }
+        catch
+        {
+            // 디스크가 찼을 때 반쯤 쓴 .tmp 가 자동 저장 폴더에 쌓이지 않게 한다. 원래 오류는 그대로 올린다.
+            try { File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            throw;
+        }
     }
 
     private static void TryDeleteDirectory(string folder)

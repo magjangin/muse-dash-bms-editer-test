@@ -34,6 +34,8 @@ public sealed class AppSettings
 
     public List<string> RecentFiles { get; set; } = new();
 
+    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+
     public static string DefaultPath => Path.Combine(AutoSaveStore.DefaultDataRoot, "settings.json");
 
     public void AddRecentFile(string path)
@@ -68,9 +70,24 @@ public sealed class AppSettings
             var file = path ?? DefaultPath;
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
 
+            // 디스크까지 내려보낸 뒤에만 바꿔치기한다. 전원이 나가면 0바이트 settings.json 이 남아
+            // 최근 파일·창 배치가 통째로 기본값으로 돌아가는 일을 막는다.
             var temp = file + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(temp, file, overwrite: true);
+            try
+            {
+                using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    JsonSerializer.Serialize(stream, this, SerializerOptions);
+                    stream.Flush(flushToDisk: true);
+                }
+
+                File.Move(temp, file, overwrite: true);
+            }
+            catch
+            {
+                try { File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                throw;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
