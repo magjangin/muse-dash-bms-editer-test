@@ -43,6 +43,7 @@ public sealed class NoteGridControl : TimelineControlBase
     private IReadOnlyList<LaneDefinition>? _visibleLanesCache;
     private IReadOnlyList<LaneDefinition>? _visibleLanesSourceLanes;
     private IReadOnlyList<BmsNote>? _visibleLanesSourceNotes;
+    private int _visibleLanesSourceNotesCount;
 
     // 화면에 그리고 클릭을 맞춰 볼 레인. 숨김이 꺼져 있으면 Lanes 그대로다.
     // 노트가 하나도 없으면 전부 숨기지 않고 그대로 둔다(빈 화면이 되면 켠 줄도 모른다).
@@ -55,7 +56,7 @@ public sealed class NoteGridControl : TimelineControlBase
             if (all is null || !HideUnusedLanes || notes is null || notes.Count == 0)
                 return all;
 
-            if (ReferenceEquals(all, _visibleLanesSourceLanes) && ReferenceEquals(notes, _visibleLanesSourceNotes))
+            if (ReferenceEquals(all, _visibleLanesSourceLanes) && ReferenceEquals(notes, _visibleLanesSourceNotes) && notes.Count == _visibleLanesSourceNotesCount)
                 return _visibleLanesCache;
 
             var used = new HashSet<string>(StringComparer.Ordinal);
@@ -71,6 +72,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
             _visibleLanesSourceLanes = all;
             _visibleLanesSourceNotes = notes;
+            _visibleLanesSourceNotesCount = notes.Count;
             _visibleLanesCache = visible.Count == 0 ? all : visible;
             return _visibleLanesCache;
         }
@@ -271,20 +273,26 @@ public sealed class NoteGridControl : TimelineControlBase
     private IReadOnlyList<BmsNote>? _lastObservedSelectedNotes;
     private BmsNote[]? _sortedNotesByPos;
     private IReadOnlyList<BmsNote>? _lastObservedNotes;
+    private int _lastObservedNotesCount;
     private Dictionary<string, int>? _laneIndexMap;
     private IReadOnlyList<LaneDefinition>? _lastObservedLanesForMap;
 
     private BmsNote[] GetSortedNotes(IReadOnlyList<BmsNote> notes)
     {
-        if (ReferenceEquals(notes, _lastObservedNotes) && _sortedNotesByPos is not null)
+        if (ReferenceEquals(notes, _lastObservedNotes) && notes.Count == _lastObservedNotesCount && _sortedNotesByPos is not null)
             return _sortedNotesByPos;
 
         var copy = new BmsNote[notes.Count];
         for (var i = 0; i < notes.Count; i++)
             copy[i] = notes[i];
 
-        Array.Sort(copy, static (a, b) => (a.Measure + a.Position).CompareTo(b.Measure + b.Position));
+        Array.Sort(copy, static (a, b) =>
+        {
+            var m = a.Measure.CompareTo(b.Measure);
+            return m != 0 ? m : a.Position.CompareTo(b.Position);
+        });
         _lastObservedNotes = notes;
+        _lastObservedNotesCount = notes.Count;
         _sortedNotesByPos = copy;
         return copy;
     }

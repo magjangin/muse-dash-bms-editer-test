@@ -52,7 +52,7 @@
 | :--- | :--- |
 | **[BmsParser.cs](../../muse%20dash%20bms%20editer/Services/BmsParser.cs)** | BMS 파일을 `BmsChart` 로 읽습니다. 바이트로 한 번만 읽고 BOM → UTF-8(엄격) → CP932/CP949 순으로 인코딩을 가립니다(`#WAV` 파일명이 폴더에 실제로 있는지가 1순위 증거). 2자리/3자리 키음 배치를 가리고, 편집 레인이 아닌 줄은 원문 보존줄로 남기면서 `#xxx02`·`#xxx03`·`#xxx08` 은 시간축용으로 따로 읽습니다. 조건 제어 줄은 `BranchTracker` 가 따라가며 줄마다 갈래 번호를 붙입니다(`#IF`~`#ENDIF`, `#SWITCH` 안에서는 `#CASE` 마다 앞 갈래를 닫고 새 갈래). 다운믹서가 같은 인코딩 판별을 쓰도록 `ReadLinesForAnalysis` 를 엽니다. |
 | **[BmsWriter.cs](../../muse%20dash%20bms%20editer/Services/BmsWriter.cs)** | 문서를 BMS 텍스트로 씁니다. 값이 빈 헤더는 쓰지 않고, 보존한 헤더와 `#WAV`(중복 번호는 마지막 것 하나)를 쓴 뒤 데이터 줄을 씁니다. 조건 밖 줄은 마디 → (원문 줄, 레인 순서)로 정렬하고, 조건 블록은 원문 순서 그대로 **덩어리째** 내보내 조건 밖 줄이 `#IF`~`#ENDIF` 사이로 끼어들지 않게 합니다(`GroupConditionalBlocks`). 마디 안 위치는 분모의 최소공배수(최대 1920)로 분할하고, 최소공배수가 1920 을 넘으면 반올림하지 않고 상한 안에 드는 노트끼리 묶어 같은 마디·채널 줄을 나눠 씁니다(`SplitByResolution`). 또 같은 마디·레인·자리에 노트가 둘 이상이면 덮어쓰지 않고 여러 `#MMMCC:` 줄로 나누어 씁니다. |
-| **[SafeFileWriter.cs](../../muse%20dash%20bms%20editer/Services/SafeFileWriter.cs)** | 같은 폴더의 임시 파일에 끝까지 쓴 뒤에만 원본과 바꿔치기합니다(`File.Replace`). 직전 내용은 `.bak` 으로 남고, `Replace` 를 못 쓰는 드라이브에서는 `Move(overwrite)` 로 물러납니다. 저장이 끝나면 같은 폴더에 남은 `<차트>.<32자리>.tmp`(저장 중 전원 차단 흔적) 중 1시간 넘은 것만 치웁니다(`CleanStaleTempFiles`, v0.1.8). |
+| **[SafeFileWriter.cs](../../muse%20dash%20bms%20editer/Services/SafeFileWriter.cs)** | 같은 폴더의 임시 파일에 끝까지 쓴 뒤에만 원본과 바꿔치기합니다(`File.Replace`). 직전 내용은 `.bak` 으로 남고, `Replace` 를 못 쓰는 드라이브에서는 `Move(overwrite)` 로 물러납니다. 백신·클라우드 동기화(OneDrive)의 일시적 잠금에 대비해 최대 3회 재시도 및 `.bak`·원본의 `ReadOnly` 속성을 자동 해제합니다(v0.1.9). 저장이 끝나면 같은 폴더에 남은 `<차트>.<32자리>.tmp`(저장 중 전원 차단 흔적) 중 1시간 넘은 것만 치웁니다(`CleanStaleTempFiles`, v0.1.8). |
 | **[FolderMedia.cs](../../muse%20dash%20bms%20editer/Services/FolderMedia.cs)** | 곡 폴더에서 차트 · 음원(OGG) · 영상을 고르는 규칙입니다. 폴더 이름과 같은 파일이 있으면 그것, 없으면 이름순 첫 번째. 폴더 열기와 건반 BMS 가져오기가 같이 씁니다. |
 | **[WavKey.cs](../../muse%20dash%20bms%20editer/Services/WavKey.cs)** | base-36 키음 번호(`01`~`ZZ`, `001`~`ZZZ`)의 파싱 · 서식 · 자릿수 규칙을 한 곳에 둡니다. |
 | **[FileAssociation.cs](../../muse%20dash%20bms%20editer/Services/FileAssociation.cs)** | `.bms` · `.bme` · `.bml` 확장자를 현재 사용자 레지스트리(`HKCU\Software\Classes`)에 등록/해제합니다. `Unregister()` 는 이 에디터가 등록한 연결만 지웁니다(다른 프로그램으로 이미 바뀐 확장자는 건드리지 않음). `RepairIfStale()` 은 시작할 때 **등록된 exe 가 사라졌을 때만** 지금 exe 로 다시 적어 업데이트로 끊긴 연결을 되살립니다(등록이 없거나 옛 exe 가 남아 있으면 건드리지 않음). |
@@ -198,7 +198,7 @@ xUnit + Avalonia Headless 입니다. 헤드리스 창은 디스패처 스레드 
 | 노트 그림 · 씬 · 속도 · 필터 | `NoteIconTests` · `NoteIconImporterTests` · `NoteSpeedTests` · `SceneConvertTests` · `WavSearchTests` |
 | 다운믹스 | `DownmixTests` · `DownmixRealChartTests` |
 | 창 · 보조 창 | `WindowSmokeTests` · `UndoUiSmokeTests` · `ControlPanelTests` · `LoadPerformanceTests` |
-| 오디오 · 내성 · 기타 | `KeySoundPlayerTests` · `PlaybackSpeedAndKeySoundTests` · `FolderMediaTests` · `AuditResilienceTests` · `AuditV017Tests` · `AuditV018Tests` |
+| 오디오 · 내성 · 기타 | `KeySoundPlayerTests` · `PlaybackSpeedAndKeySoundTests` · `FolderMediaTests` · `AuditResilienceTests` · `AuditV017Tests` · `AuditV018Tests` · `AuditV019Tests` |
 
 > `DownmixRealChartTests` 와 `DownmixTests` · `HoldPairingTests` 의 "실제 차트" 테스트는 이 개발 PC 의 게임 폴더(`H:\…`)를 읽습니다.
 > 폴더가 없는 PC 에서는 한 줄만 남기고 **통과로** 끝납니다(건너뜀으로 세지 않습니다).

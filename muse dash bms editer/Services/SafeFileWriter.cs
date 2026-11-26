@@ -119,23 +119,84 @@ public static class SafeFileWriter
 
     private static void ReplaceOriginal(string tempPath, string fullPath)
     {
+        var backupPath = fullPath + BackupExtension;
+        EnsureNotReadOnly(backupPath);
+        EnsureNotReadOnly(fullPath);
+
         if (!File.Exists(fullPath))
         {
-            File.Move(tempPath, fullPath);
+            MoveWithRetry(tempPath, fullPath, overwrite: false);
             return;
         }
 
+        // 백신 실시간 검사나 클라우드 동기화(OneDrive 등)로 인해 일시적인 파일 잠금이 발생할 수 있다.
+        // 최대 3회 짧게 재시도하여 저장 실패를 방지한다.
+        Exception? lastException = null;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                // 직전 내용을 .bak 로 남긴다. 저장한 뒤에야 잘못된 걸 알아채는 경우가 많다.
+                File.Replace(tempPath, fullPath, backupPath, ignoreMetadataErrors: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                lastException = ex;
+                EnsureNotReadOnly(backupPath);
+                EnsureNotReadOnly(fullPath);
+
+                if (attempt < 2)
+                    System.Threading.Thread.Sleep((attempt + 1) * 30);
+            }
+        }
+
+        // 네트워크 드라이브처럼 Replace 를 지원하지 않거나 끝내 Replace 가 실패한 경우
+        // Move(overwrite) 도 같은 볼륨 안에서는 원자적이라 원본이 잘리지는 않는다.
         try
         {
-            // 직전 내용을 .bak 로 남긴다. 저장한 뒤에야 잘못된 걸 알아채는 경우가 많다.
-            File.Replace(tempPath, fullPath, fullPath + BackupExtension, ignoreMetadataErrors: true);
+            MoveWithRetry(tempPath, fullPath, overwrite: true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        catch
         {
-            // 네트워크 드라이브처럼 Replace 를 지원하지 않는 곳도 있다.
-            // Move(overwrite) 도 같은 볼륨 안에서는 원자적이라 원본이 잘리지는 않는다.
-            // 다만 .bak 은 남지 않는다.
-            File.Move(tempPath, fullPath, overwrite: true);
+            if (lastException is not null)
+                throw lastException;
+            throw;
+        }
+    }
+
+    private static void MoveWithRetry(string source, string destination, bool overwrite)
+    {
+        EnsureNotReadOnly(destination);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                File.Move(source, destination, overwrite);
+                return;
+            }
+            catch (Exception ex) when (attempt < 2 && (ex is IOException or UnauthorizedAccessException))
+            {
+                EnsureNotReadOnly(destination);
+                System.Threading.Thread.Sleep((attempt + 1) * 30);
+            }
+        }
+    }
+
+    private static void EnsureNotReadOnly(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                var attr = File.GetAttributes(path);
+                if ((attr & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+            }
+        }
+        catch
+        {
+            // 속성 변경 실패 무시
         }
     }
 
