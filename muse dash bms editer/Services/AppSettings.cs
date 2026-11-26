@@ -101,7 +101,13 @@ public sealed class AppSettings
         try
         {
             if (File.Exists(file))
-                return (JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(file), ReadOptions) ?? new AppSettings()).Sanitize();
+            {
+                var text = File.ReadAllText(file);
+                if (string.IsNullOrWhiteSpace(text))
+                    return new AppSettings().Sanitize();
+
+                return (JsonSerializer.Deserialize<AppSettings>(text, ReadOptions) ?? new AppSettings()).Sanitize();
+            }
         }
         catch (JsonException ex)
         {
@@ -136,7 +142,8 @@ public sealed class AppSettings
                 stream.Flush(flushToDisk: true);
             }
 
-            File.Move(temp, file, overwrite: true);
+            EnsureNotReadOnly(file);
+            MoveWithRetry(temp, file);
             temp = null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -150,6 +157,41 @@ public sealed class AppSettings
                 try { File.Delete(temp); }
                 catch { /* 임시 파일 정리 실패 무시 */ }
             }
+        }
+    }
+
+    private static void MoveWithRetry(string source, string destination)
+    {
+        EnsureNotReadOnly(destination);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                File.Move(source, destination, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (attempt < 2 && (ex is IOException or UnauthorizedAccessException))
+            {
+                EnsureNotReadOnly(destination);
+                System.Threading.Thread.Sleep((attempt + 1) * 30);
+            }
+        }
+    }
+
+    private static void EnsureNotReadOnly(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                var attr = File.GetAttributes(path);
+                if ((attr & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+            }
+        }
+        catch
+        {
+            // 속성 변경 실패 무시
         }
     }
 

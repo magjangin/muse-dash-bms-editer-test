@@ -99,6 +99,12 @@ muse dash bms editer/
    - **임시 파일 청소**: `SafeFileWriter.CleanStaleTempFiles` 는 `<차트파일명>.<32자리 hex>.tmp` 형식과 정확히 맞고 1시간 넘은 것만 지웁니다(Windows 와일드카드가 8.3 이름까지 맞추므로 이름을 다시 검사). 설정 임시 파일은 1일.
    - **자동 저장 meta 유실**: 차트가 있으면 `FallbackMeta`(원본 경로 null, `NoteCount = -1` → 복구 창에 "알 수 없음")로 살립니다. 차트·잠금 없는 하루 지난 빈 폴더만 지웁니다.
 
+14. **업데이트·동기화 내성 및 병목 해결 (v0.1.9)**:
+   - **ReadOnly 및 파일 잠금(Sharing Violation) 내성**: `SafeFileWriter`, `AppSettings`, `AutoSaveStore`에서 파일 교체 전 대상 파일 및 `.bak`의 `ReadOnly` 속성을 자동 해제하고, 백신(Defender)·클라우드 동기화(OneDrive)의 일시적 파일 잠금에 대비한 3회 지수 백오프 재시도를 탑재했습니다.
+   - **타임라인 연산 병목 제거**: `ChartTimeline` 생성 시 변속 위치를 사전 정규화하여 수천 개 노트 렌더링 시 매 호출마다 발생하던 `Math.Clamp`를 제거하고, 경계값 탐색 안전성을 강화했습니다.
+   - **그리드 렌더링 최적화**: `NoteGridControl`에서 부동소수점 덧셈 비교 대신 정수 마디 우선 비교로 정렬 성능을 개선하고, 컬렉션 내 추가/삭제 시에도 즉시 갱신되도록 카운트 검증을 보강했습니다.
+   - **BMS 헤더 무결성**: `#BMSEDITER_OFFSET`의 `double.IsFinite` 방어 및 `ToDenominator` NaN/음수 방어를 적용했습니다.
+
 ---
 
 ## 4. 커스텀 에셋 주입 파이프라인 & UID 규칙
@@ -174,7 +180,7 @@ muse dash bms editer/
 
 ## 7. 검증 현황 & 문서 점검 체크리스트
 
-* **현재 버전**: v0.1.8 (`.csproj` 의 `Version`). **테스트 500개 전부 통과** (2026-11-25, `dotnet test "muse dash bms editer.slnx"`). Release 빌드 경고 0개.
+* **현재 버전**: v0.1.9 (`.csproj` 의 `Version`). **테스트 507개 전부 통과** (2026-11-26, `dotnet test "muse dash bms editer.slnx"`). Release 빌드 경고 0개.
   일부 "실제 차트" 테스트는 개발 PC 의 게임 폴더를 읽고, 없으면 통과로 끝납니다.
 * **문서를 고칠 때 같이 볼 곳**: 새 서비스/뷰모델을 추가하면 [`docs/architecture/code_explanation.md`](docs/architecture/code_explanation.md) 의 표와 테스트 묶음 표,
   버전·테스트 수가 바뀌면 `docs/issues/known_issues.md` 머리말과 이 절을 함께 갱신하십시오 (이전에 224개로 굳어 있던 적이 있습니다).

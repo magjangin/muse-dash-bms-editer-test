@@ -87,7 +87,7 @@ public static class WavDecoder
                         }
                     }
 
-                    var remaining = safeChunkSize - readBytes;
+                    var remaining = Math.Max(0, safeChunkSize - readBytes);
                     if (remaining > 0)
                     {
                         if (stream.CanSeek)

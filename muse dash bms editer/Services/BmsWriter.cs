@@ -41,7 +41,7 @@ public static class BmsWriter
 
         AppendIfPresent(sb, "#PLAYLEVEL", level, nl);
 
-        if (Math.Abs(chart.Header.AudioOffsetMs) > 1e-4)
+        if (double.IsFinite(chart.Header.AudioOffsetMs) && Math.Abs(chart.Header.AudioOffsetMs) > 1e-4)
             sb.Append("#BMSEDITER_OFFSET ").Append(chart.Header.AudioOffsetMs.ToString("0.####", CultureInfo.InvariantCulture)).Append(nl);
 
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
@@ -339,6 +339,9 @@ public static class BmsWriter
 
     private static int ToDenominator(double value, int maxDenominator)
     {
+        if (!double.IsFinite(value) || value <= 0)
+            return 1;
+
         value -= Math.Floor(value);
         if (value <= 1e-9)
             return 1;

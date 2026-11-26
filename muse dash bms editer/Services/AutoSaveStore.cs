@@ -172,10 +172,10 @@ public sealed class AutoSaveStore : IDisposable
             Directory.CreateDirectory(folder);
 
             if (isFirstSave)
-                File.Copy(filePath, Path.Combine(folder, OriginalBackupName), overwrite: true);
+                SafeCopy(filePath, Path.Combine(folder, OriginalBackupName));
 
             var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture);
-            File.Copy(filePath, Path.Combine(folder, stamp + ".bms"), overwrite: true);
+            SafeCopy(filePath, Path.Combine(folder, stamp + ".bms"));
 
             PruneOldest(
                 Directory.EnumerateFiles(folder, "*.bms")
@@ -346,7 +346,8 @@ public sealed class AutoSaveStore : IDisposable
                 stream.Flush(flushToDisk: true);
             }
 
-            File.Move(temp, path, overwrite: true);
+            EnsureNotReadOnly(path);
+            MoveWithRetry(temp, path);
             temp = null;
         }
         finally
@@ -356,6 +357,59 @@ public sealed class AutoSaveStore : IDisposable
                 try { File.Delete(temp); }
                 catch { /* 임시 파일 정리 실패 무시 */ }
             }
+        }
+    }
+
+    private static void SafeCopy(string source, string destination)
+    {
+        EnsureNotReadOnly(destination);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                File.Copy(source, destination, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (attempt < 2 && (ex is IOException or UnauthorizedAccessException))
+            {
+                EnsureNotReadOnly(destination);
+                System.Threading.Thread.Sleep((attempt + 1) * 30);
+            }
+        }
+    }
+
+    private static void MoveWithRetry(string source, string destination)
+    {
+        EnsureNotReadOnly(destination);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                File.Move(source, destination, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (attempt < 2 && (ex is IOException or UnauthorizedAccessException))
+            {
+                EnsureNotReadOnly(destination);
+                System.Threading.Thread.Sleep((attempt + 1) * 30);
+            }
+        }
+    }
+
+    private static void EnsureNotReadOnly(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                var attr = File.GetAttributes(path);
+                if ((attr & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+            }
+        }
+        catch
+        {
+            // 속성 변경 실패 무시
         }
     }
 
