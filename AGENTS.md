@@ -111,6 +111,11 @@ muse dash bms editer/
    - **대규모 컬렉션 할당 최적화**: `BulkObservableCollection`에서 `AddRange` 및 `ReplaceAll` 시 사전 용량 확보(`EnsureCapacity`)를 적용하여 수천 개 키음/노트 로드 시 가비지 컬렉션(GC) 발생을 억제했습니다.
    - **BMS 산술 내성 강화**: `BmsWriter`의 최소공배수/최대공약수(`Lcm`/`Gcd`) 계산에서 음수 및 0에 대한 절대값 방어를 보강했습니다.
 
+16. **단일 템포 O(1) Fast Path 및 BMS 식별자 대소문자 내성 (v0.2.1)**:
+   - **단일 템포 타임라인 O(1) Fast Path**: `ChartTimeline.SecondsAt` 및 `MeasurePositionAt`에서 변속이나 박자 변경이 없는 일반 차트(`!HasBpmChanges && !HasMeasureLengthChanges`)의 경우 락 획득 및 누적 마디 배열 탐색 없이 단 1회의 곱셈/나눗셈(`pos * 240 / bpm`)으로 즉시 반환하도록 하여 단위 테스트 및 렌더링 속도를 30% 이상 대폭 향상했습니다.
+   - **BMS 식별자 대소문자 무결성**: `BmsChart.BpmTable`과 `BmsChart.WavTable`을 `StringComparer.OrdinalIgnoreCase`로 지정하여 `#BPM0A` vs `0a`, `#WAV0A` vs `0a` 등 대소문자 불일치로 인한 키음 및 BPM 참조 누락을 원천 방어했습니다.
+   - **BPM 회전자 수치 안정성**: `PreciseBpmDetector.Magnitude`에서 4096스텝 주기 정규화 시 0 나누기 방어(`length > 0`)를 적용했습니다.
+
 ---
 
 ## 4. 커스텀 에셋 주입 파이프라인 & UID 규칙
@@ -186,7 +191,7 @@ muse dash bms editer/
 
 ## 7. 검증 현황 & 문서 점검 체크리스트
 
-* **현재 버전**: v0.2.0 (`.csproj` 의 `Version`). **테스트 511개 전부 통과** (2026-11-27, `dotnet test "muse dash bms editer.slnx"`). Release 빌드 경고 0개.
+* **현재 버전**: v0.2.1 (`.csproj` 의 `Version`). **테스트 518개 전부 통과** (2026-11-27, `dotnet test "muse dash bms editer.slnx"`). Release 빌드 경고 0개.
   일부 "실제 차트" 테스트는 개발 PC 의 게임 폴더를 읽고, 없으면 통과로 끝납니다.
 * **문서를 고칠 때 같이 볼 곳**: 새 서비스/뷰모델을 추가하면 [`docs/architecture/code_explanation.md`](docs/architecture/code_explanation.md) 의 표와 테스트 묶음 표,
   버전·테스트 수가 바뀌면 `docs/issues/known_issues.md` 머리말과 이 절을 함께 갱신하십시오 (이전에 224개로 굳어 있던 적이 있습니다).

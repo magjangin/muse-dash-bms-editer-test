@@ -103,8 +103,11 @@ public static class PreciseBpmDetector
             if ((n & 4095) == 4095)
             {
                 var length = Math.Sqrt((rotCos * rotCos) + (rotSin * rotSin));
-                rotCos /= length;
-                rotSin /= length;
+                if (length > 0)
+                {
+                    rotCos /= length;
+                    rotSin /= length;
+                }
             }
         }
 

@@ -74,6 +74,10 @@ public sealed class ChartTimeline
         if (!double.IsFinite(measurePosition) || measurePosition <= 0)
             return 0;
 
+        // 변속이나 박자 변경이 없는 일반 차트의 O(1) Fast Path (락 및 배열 조회 제거)
+        if (!HasBpmChanges && !HasMeasureLengthChanges)
+            return measurePosition * (240.0 / _baseBpm);
+
         var floored = Math.Floor(measurePosition);
         var measure = floored >= MaxMeasure ? MaxMeasure : (int)floored;
         var position = floored >= MaxMeasure ? 0.0 : measurePosition - measure;
@@ -114,6 +118,10 @@ public sealed class ChartTimeline
     {
         if (!double.IsFinite(seconds) || seconds <= 0)
             return 0;
+
+        // 변속이나 박자 변경이 없는 일반 차트의 O(1) Fast Path
+        if (!HasBpmChanges && !HasMeasureLengthChanges)
+            return seconds / (240.0 / _baseBpm);
 
         int measure;
         double remaining;
