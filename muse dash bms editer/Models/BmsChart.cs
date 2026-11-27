@@ -12,7 +12,7 @@ public sealed class BmsChart
     public Dictionary<int, double> MeasureLengths { get; } = new();
 
     // #BPMxx 확장 BPM 표. 채널 08 이 이 번호를 가리킨다.
-    public Dictionary<string, double> BpmTable { get; } = new();
+    public Dictionary<string, double> BpmTable { get; } = new(System.StringComparer.OrdinalIgnoreCase);
 
     // 곡 도중의 BPM 변화 (#xxx03 · #xxx08). 파일에 있던 순서와 무관하게 시각 순으로 쓴다.
     public List<BpmChange> BpmChanges { get; } = new();
@@ -23,7 +23,7 @@ public sealed class BmsChart
     // 저장할 때 그대로 다시 내보내야 하므로 파일에 있던 순서대로 담는다.
     public List<BmsRawLine> PreservedLines { get; } = new();
 
-    public Dictionary<string, string> WavTable { get; } = new();
+    public Dictionary<string, string> WavTable { get; } = new(System.StringComparer.OrdinalIgnoreCase);
 
     public int MeasureCount { get; set; } = 32;
 
