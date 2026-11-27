@@ -9,7 +9,7 @@
 ![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)
 ![Avalonia 12](https://img.shields.io/badge/Avalonia_UI-12-8B44AC)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D4)
-![version](https://img.shields.io/badge/version-0.1.9-lightgrey)
+![version](https://img.shields.io/badge/version-0.2.0-lightgrey)
 ![status](https://img.shields.io/badge/status-testing-orange)
 
 > [!NOTE]

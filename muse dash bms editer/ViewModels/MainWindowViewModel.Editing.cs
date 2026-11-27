@@ -118,8 +118,20 @@ public sealed partial class MainWindowViewModel
     private BmsNote[]? _sortedNotesCache;
     private double[]? _sortedNoteSecondsCache;
 
-    private BmsNote[] GetSortedNotes() =>
-        _sortedNotesCache ??= Chart.Notes.OrderBy(n => n.Measure + n.Position).ToArray();
+    private BmsNote[] GetSortedNotes()
+    {
+        if (_sortedNotesCache is not null)
+            return _sortedNotesCache;
+
+        var copy = Chart.Notes.ToArray();
+        Array.Sort(copy, static (a, b) =>
+        {
+            var m = a.Measure.CompareTo(b.Measure);
+            return m != 0 ? m : a.Position.CompareTo(b.Position);
+        });
+        _sortedNotesCache = copy;
+        return copy;
+    }
 
     private (BmsNote[] Notes, double[] Seconds) GetSortedNotesWithSeconds()
     {

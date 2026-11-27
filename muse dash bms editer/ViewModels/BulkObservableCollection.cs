@@ -18,6 +18,9 @@ public sealed class BulkObservableCollection<T> : ObservableCollection<T>
     {
         CheckReentrancy();
 
+        if (Items is List<T> list && items is ICollection<T> col)
+            list.EnsureCapacity(list.Count + col.Count);
+
         var added = false;
         foreach (var item in items)
         {
@@ -38,6 +41,9 @@ public sealed class BulkObservableCollection<T> : ObservableCollection<T>
         CheckReentrancy();
 
         Items.Clear();
+        if (Items is List<T> list && items is ICollection<T> col)
+            list.EnsureCapacity(col.Count);
+
         foreach (var item in items)
             Items.Add(item);
 
