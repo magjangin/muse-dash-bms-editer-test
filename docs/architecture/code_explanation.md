@@ -198,7 +198,7 @@ xUnit + Avalonia Headless 입니다. 헤드리스 창은 디스패처 스레드 
 | 노트 그림 · 씬 · 속도 · 필터 | `NoteIconTests` · `NoteIconImporterTests` · `NoteSpeedTests` · `SceneConvertTests` · `WavSearchTests` |
 | 다운믹스 | `DownmixTests` · `DownmixRealChartTests` |
 | 창 · 보조 창 | `WindowSmokeTests` · `UndoUiSmokeTests` · `ControlPanelTests` · `LoadPerformanceTests` |
-| 오디오 · 내성 · 기타 | `KeySoundPlayerTests` · `PlaybackSpeedAndKeySoundTests` · `FolderMediaTests` · `AuditResilienceTests` · `AuditV017Tests` · `AuditV018Tests` · `AuditV019Tests` |
+| 오디오 · 내성 · 기타 | `KeySoundPlayerTests` · `PlaybackSpeedAndKeySoundTests` · `FolderMediaTests` · `AuditResilienceTests` · `AuditV017Tests` · `AuditV018Tests` · `AuditV019Tests` · `AuditV020Tests` |
 
 > `DownmixRealChartTests` 와 `DownmixTests` · `HoldPairingTests` 의 "실제 차트" 테스트는 이 개발 PC 의 게임 폴더(`H:\…`)를 읽습니다.
 > 폴더가 없는 PC 에서는 한 줄만 남기고 **통과로** 끝납니다(건너뜀으로 세지 않습니다).

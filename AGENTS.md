@@ -105,6 +105,12 @@ muse dash bms editer/
    - **그리드 렌더링 최적화**: `NoteGridControl`에서 부동소수점 덧셈 비교 대신 정수 마디 우선 비교로 정렬 성능을 개선하고, 컬렉션 내 추가/삭제 시에도 즉시 갱신되도록 카운트 검증을 보강했습니다.
    - **BMS 헤더 무결성**: `#BMSEDITER_OFFSET`의 `double.IsFinite` 방어 및 `ToDenominator` NaN/음수 방어를 적용했습니다.
 
+15. **키음 믹서 Fast Path 및 대규모 컬렉션·정렬 최적화 (v0.2.0)**:
+   - **키음 믹싱 Fast Path**: `KeySoundPlayer.MixOneBuffer`에서 기본 볼륨 100%(`gain == 256`) 시 불필요한 곱셈 및 비트 쉬프트를 생략하고, 음소거(`gain == 0`) 시 샘플 연산을 통째로 건너뛰는 Fast Path를 탑재하여 오디오 스레드 CPU 부하를 대폭 절감했습니다.
+   - **뷰모델 정렬 최적화**: `MainWindowViewModel.GetSortedNotes`에서 LINQ `OrderBy`와 부동소수점 덧셈을 제거하고, 정수 마디 우선 `Array.Sort`를 적용하여 대규모 노트 재생 시작 시의 렉을 해소했습니다.
+   - **대규모 컬렉션 할당 최적화**: `BulkObservableCollection`에서 `AddRange` 및 `ReplaceAll` 시 사전 용량 확보(`EnsureCapacity`)를 적용하여 수천 개 키음/노트 로드 시 가비지 컬렉션(GC) 발생을 억제했습니다.
+   - **BMS 산술 내성 강화**: `BmsWriter`의 최소공배수/최대공약수(`Lcm`/`Gcd`) 계산에서 음수 및 0에 대한 절대값 방어를 보강했습니다.
+
 ---
 
 ## 4. 커스텀 에셋 주입 파이프라인 & UID 규칙
@@ -180,7 +186,7 @@ muse dash bms editer/
 
 ## 7. 검증 현황 & 문서 점검 체크리스트
 
-* **현재 버전**: v0.1.9 (`.csproj` 의 `Version`). **테스트 507개 전부 통과** (2026-11-26, `dotnet test "muse dash bms editer.slnx"`). Release 빌드 경고 0개.
+* **현재 버전**: v0.2.0 (`.csproj` 의 `Version`). **테스트 511개 전부 통과** (2026-11-27, `dotnet test "muse dash bms editer.slnx"`). Release 빌드 경고 0개.
   일부 "실제 차트" 테스트는 개발 PC 의 게임 폴더를 읽고, 없으면 통과로 끝납니다.
 * **문서를 고칠 때 같이 볼 곳**: 새 서비스/뷰모델을 추가하면 [`docs/architecture/code_explanation.md`](docs/architecture/code_explanation.md) 의 표와 테스트 묶음 표,
   버전·테스트 수가 바뀌면 `docs/issues/known_issues.md` 머리말과 이 절을 함께 갱신하십시오 (이전에 224개로 굳어 있던 적이 있습니다).

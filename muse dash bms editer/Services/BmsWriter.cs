@@ -356,10 +356,19 @@ public static class BmsWriter
         return maxDenominator;
     }
 
-    private static long Lcm(long a, long b) => a / Gcd(a, b) * b;
+    private static long Lcm(long a, long b)
+    {
+        if (a <= 0 || b <= 0)
+            return Math.Max(1, Math.Max(a, b));
+
+        var gcd = Gcd(a, b);
+        return gcd == 0 ? 1 : Math.Abs(a / gcd * b);
+    }
 
     private static long Gcd(long a, long b)
     {
+        a = Math.Abs(a);
+        b = Math.Abs(b);
         while (b != 0)
         {
             (a, b) = (b, a % b);

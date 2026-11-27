@@ -7,7 +7,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-    <Version>0.1.9</Version>
+    <Version>0.2.0</Version>
     <Product>muse dash 1 bms editer</Product>
     <Company>magjangin</Company>
     <Description>BMS Chart Editor for Muse Dash</Description>

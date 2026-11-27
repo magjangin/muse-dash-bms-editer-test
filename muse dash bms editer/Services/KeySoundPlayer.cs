@@ -344,13 +344,32 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
                 var remainingSamples = voice.Samples.Length - voice.Position;
                 var samplesToCopy = Math.Min(remainingSamples, shortBuffer.Length);
 
-                for (var i = 0; i < samplesToCopy; i++)
+                if (gain == 0)
                 {
-                    var mixed = shortBuffer[i] + ((voice.Samples[voice.Position + i] * gain) >> 8);
-                    shortBuffer[i] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
+                    // 음소거 상태: 샘플 연산 건너뛰고 위치만 전진
+                    voice.Position += samplesToCopy;
+                }
+                else if (gain == 256)
+                {
+                    // 기본 볼륨(100%): 곱셈 및 비트 쉬프트 생략 Fast Path
+                    for (var i = 0; i < samplesToCopy; i++)
+                    {
+                        var mixed = shortBuffer[i] + voice.Samples[voice.Position + i];
+                        shortBuffer[i] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
+                    }
+                    voice.Position += samplesToCopy;
+                }
+                else
+                {
+                    // 볼륨 스케일링
+                    for (var i = 0; i < samplesToCopy; i++)
+                    {
+                        var mixed = shortBuffer[i] + ((voice.Samples[voice.Position + i] * gain) >> 8);
+                        shortBuffer[i] = (short)Math.Clamp(mixed, short.MinValue, short.MaxValue);
+                    }
+                    voice.Position += samplesToCopy;
                 }
 
-                voice.Position += samplesToCopy;
                 if (voice.Position >= voice.Samples.Length)
                 {
                     _activeVoices.RemoveAt(v);
